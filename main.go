@@ -31,7 +31,9 @@ type IRCClient struct {
 	Nickname   string
 	Port       int
 	connection net.Conn
+	Channels   []string // Keep some memory of every channel we have `joined`
 	Incoming   chan string
+	TLS        bool
 	Quit       chan struct{}
 }
 
