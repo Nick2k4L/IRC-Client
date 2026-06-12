@@ -9,8 +9,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Hello, World!")
-	client := NewIRCClient("irc.freenode.net", "test123", 6667)
+	client := NewIRCClient("127.0.0.1", "Shinobu-Kocho-fan-3", 6668)
 	client.Connect()
 	go func() {
 		for msg := range client.Incoming {
@@ -41,8 +40,18 @@ func NewIRCClient(host, nickname string, port int) *IRCClient {
 		Host:     host,
 		Nickname: nickname,
 		Port:     port,
-		Incoming: make(chan string),
+		Incoming: make(chan string, 32),
 		Quit:     make(chan struct{}),
+	}
+}
+
+func (c *IRCClient) ReadMessages() tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-c.Incoming
+		if !ok {
+			return errMsg(errors.New("connection closed"))
+		}
+		return incomingMsg(msg)
 	}
 }
 
@@ -61,15 +70,20 @@ func (c *IRCClient) Connect() {
 
 func (c *IRCClient) Disconnect() {
 	close(c.Quit)
+	if c.connection != nil {
+		_ = c.connection.Close()
+	}
 }
 
 func (c *IRCClient) Send(msg string) {
-
+	fmt.Fprintf(c.connection, "%s\r\n", msg)
+	//fmt.Println("Sent message:", msg)
 }
 
 func pong(msg string, conn net.Conn) {
-	token := strings.Split(msg, ":")[1]
-	fmt.Fprintf(conn, "PONG :%s\r\n", token)
+	token := strings.Split(msg, " ")[1]
+	fmt.Fprintf(conn, "PONG %s\r\n", token)
+	fmt.Printf("PONG sent: %s\r\n", token)
 }
 
 func (c *IRCClient) readLoop(conn net.Conn) {
@@ -79,6 +93,9 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 		n, _ := conn.Read(buf)
 		if n > 0 {
 			msg, _ := irc.ParseMessage(string(buf[:n]))
+			if msg.Command == "PING" {
+				pong(string(buf[:n]), conn)
+			}
 			c.Incoming <- msg.String()
 
 		}
