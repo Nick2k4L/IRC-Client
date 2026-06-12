@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/go-irc/irc"
 )
@@ -14,6 +15,9 @@ func main() {
 	go func() {
 		for msg := range client.Incoming {
 			fmt.Println(msg)
+			if strings.Contains(msg, "PING") {
+				pong(msg, client.connection)
+			}
 		}
 	}()
 	select {}
@@ -57,6 +61,15 @@ func (c *IRCClient) Connect() {
 
 func (c *IRCClient) Disconnect() {
 	close(c.Quit)
+}
+
+func (c *IRCClient) Send(msg string) {
+
+}
+
+func pong(msg string, conn net.Conn) {
+	token := strings.Split(msg, ":")[1]
+	fmt.Fprintf(conn, "PONG :%s\r\n", token)
 }
 
 func (c *IRCClient) readLoop(conn net.Conn) {
