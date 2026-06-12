@@ -3,10 +3,20 @@ package main
 import (
 	"fmt"
 	"net"
+
+	"github.com/go-irc/irc"
 )
 
 func main() {
 	fmt.Println("Hello, World!")
+	client := NewIRCClient("irc.freenode.net", "test123", 6667)
+	client.Connect()
+	go func() {
+		for msg := range client.Incoming {
+			fmt.Println(msg)
+		}
+	}()
+	select {}
 }
 
 // So what are the fundamentals in creating an IRC Client?
@@ -38,10 +48,26 @@ func (c *IRCClient) Connect() {
 		panic(err)
 	}
 	c.connection = conn
-
-	defer c.connection.Close()
-
 	// need to send the nick and user commands to the server
 	fmt.Fprintf(c.connection, "NICK %s\r\n", c.Nickname)
 	fmt.Fprintf(c.connection, "USER %s 0 * :%s\r\n", c.Nickname, c.Nickname)
+	go c.readLoop(c.connection)
+
+}
+
+func (c *IRCClient) Disconnect() {
+	close(c.Quit)
+}
+
+func (c *IRCClient) readLoop(conn net.Conn) {
+	// From the connection, read line by line and print it out to the user:
+	buf := make([]byte, 1024)
+	for {
+		n, _ := conn.Read(buf)
+		if n > 0 {
+			msg, _ := irc.ParseMessage(string(buf[:n]))
+			c.Incoming <- msg.String()
+
+		}
+	}
 }
