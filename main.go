@@ -88,16 +88,25 @@ func pong(msg string, conn net.Conn) {
 
 func (c *IRCClient) readLoop(conn net.Conn) {
 	// From the connection, read line by line and print it out to the user:
-	buf := make([]byte, 1024)
-	for {
-		n, _ := conn.Read(buf)
-		if n > 0 {
-			msg, _ := irc.ParseMessage(string(buf[:n]))
-			if msg.Command == "PING" {
-				pong(string(buf[:n]), conn)
-			}
-			c.Incoming <- msg.String()
+	scanner := bufio.NewScanner(conn)
 
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		msg, err := irc.ParseMessage(line)
+		if err != nil {
+			fmt.Println("Error parsing message:", err)
+			continue
 		}
+		if msg.Command == "PING" {
+			pong(line, conn)
+			continue
+		}
+		c.Incoming <- msg.String()
 	}
+
+	if err := scanner.Err(); err != nil {
+		fmt.Println("Error reading from connection:", err)
+	}
+	close(c.Incoming)
 }
