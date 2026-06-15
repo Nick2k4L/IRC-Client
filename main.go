@@ -106,14 +106,35 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 		line := scanner.Text()
 
 		msg, err := irc.ParseMessage(line)
+
 		if err != nil {
 			fmt.Println("Error parsing message:", err)
 			continue
 		}
+
+		// handle PING commands
 		if msg.Command == "PING" {
 			pong(line, conn)
 			continue
 		}
+
+		// handle PRIVMSG commands
+		if msg.Command == "PRIVMSG" && len(msg.Params) > 1 {
+			text := msg.Params[1]
+			if strings.HasPrefix(text, "\x01VERSION") {
+				target := msg.Name
+				if target == "" && msg.Prefix != nil {
+					target = msg.Prefix.Name
+				}
+
+				if target != "" {
+					// Respond with a NOTICE wrapped in \x01
+					fmt.Fprintf(conn, "NOTICE %s :\x01VERSION CustomGoClient:1.0\x01\r\n", target)
+				}
+				continue
+			}
+		}
+
 		c.Incoming <- msg.String()
 	}
 
