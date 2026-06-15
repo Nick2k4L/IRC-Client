@@ -30,6 +30,11 @@ func main() {
 
 // Nickname, Host, Port, Channels, Messages, establishing a connection
 
+var commandMap map[string]string = map[string]string{
+	"JOIN": "Joined channel",
+	"PART": "Left channel",
+}
+
 type IRCClient struct {
 	Host       string
 	Nickname   string
@@ -41,11 +46,24 @@ type IRCClient struct {
 	Quit       chan struct{}
 }
 
-type StructuredMessage struct {
+type StructuredMessage interface {
+	RawToReadable(msg *irc.Message) StructuredMessage
+	Formatted() string
+}
+
+type ChannelMessage struct {
 	Timestamp time.Time
 	User      string
 	Message   string
 	Channel   string
+}
+
+type CommandMessage struct {
+	Timestamp time.Time
+	User      string
+	Reason    string
+	Channel   string
+	Command   string
 }
 
 func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
@@ -127,15 +145,15 @@ func (c *IRCClient) ParseUserInput(input string) {
 		}
 	case "/CHANNELS":
 		chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
-		msg := StructuredMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
-		c.Incoming <- msg
+		msg := ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
+		c.Incoming <- &msg
 	}
 }
 
-func StructuredMessageFromIRC(msg *irc.Message) StructuredMessage {
+func (cm *ChannelMessage) RawToReadable(msg *irc.Message) StructuredMessage {
 
 	if len(msg.Params) >= 2 {
-		return StructuredMessage{
+		return &ChannelMessage{
 			Timestamp: time.Now(),
 			User:      msg.Prefix.Name,
 			Message:   msg.Params[1],
@@ -143,12 +161,32 @@ func StructuredMessageFromIRC(msg *irc.Message) StructuredMessage {
 		}
 	}
 
-	return StructuredMessage{
+	return &ChannelMessage{
 		Timestamp: time.Now(),
 		User:      msg.Prefix.Name,
 		Message:   msg.String(),
 		Channel:   msg.Params[0],
 	}
+}
+
+func (cm *ChannelMessage) Formatted() string {
+	return fmt.Sprintf("[%s] {%s} <%s> : %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.User, cm.Message)
+}
+
+func (cm *CommandMessage) RawToReadable(msg *irc.Message) StructuredMessage {
+	return &CommandMessage{
+		Timestamp: time.Now(),
+		User:      msg.Prefix.Name,
+		Command:   msg.Command,
+		Channel:   msg.Params[0],
+	}
+}
+
+func (cm *CommandMessage) Formatted() string {
+	if cm.User != "" {
+		return fmt.Sprintf("[%s] # <%s> %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command])
+	}
+	return fmt.Sprintf("[%s] : {%s} %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.Command)
 }
 
 func handleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan StructuredMessage) bool {
@@ -177,16 +215,15 @@ func handleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan 
 				}
 			}
 		}
-	case "JOIN":
+	case "JOIN", "PART":
 		{
-			incoming <- StructuredMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: "Joined channel: " + msg.Params[0], Channel: msg.Params[0]}
+			incoming <- (&CommandMessage{}).RawToReadable(msg)
 			return true
 		}
-	case "QUIT":
-		{
-			incoming <- StructuredMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: "Left channel: " + msg.Params[0], Channel: msg.Params[0]}
-		}
-		return true
+		//case "QUIT":
+		//	{
+		//	}
+		//	return true
 	}
 
 	return false
@@ -216,7 +253,7 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 			continue
 		}
 
-		neatMsg := StructuredMessageFromIRC(msg)
+		neatMsg := (&ChannelMessage{}).RawToReadable(msg)
 		c.Incoming <- neatMsg
 	}
 
