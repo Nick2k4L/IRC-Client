@@ -32,9 +32,16 @@ type IRCClient struct {
 	Port       int
 	connection net.Conn
 	Channels   []string // Keep some memory of every channel we have `joined`
-	Incoming   chan string
+	Incoming   chan StructuredMessage
 	TLS        bool
 	Quit       chan struct{}
+}
+
+type StructuredMessage struct {
+	Timestamp time.Time
+	User      string
+	Message   string
+	Channel   string
 }
 
 func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
@@ -43,7 +50,7 @@ func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
 		Nickname: nickname,
 		Port:     port,
 		TLS:      tls,
-		Incoming: make(chan string, 32),
+		Incoming: make(chan StructuredMessage, 32),
 		Quit:     make(chan struct{}),
 	}
 }
