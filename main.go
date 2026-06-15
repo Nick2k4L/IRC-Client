@@ -37,11 +37,12 @@ type IRCClient struct {
 	Quit       chan struct{}
 }
 
-func NewIRCClient(host, nickname string, port int) *IRCClient {
+func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
 	return &IRCClient{
 		Host:     host,
 		Nickname: nickname,
 		Port:     port,
+		TLS:      tls,
 		Incoming: make(chan string, 32),
 		Quit:     make(chan struct{}),
 	}
@@ -72,6 +73,7 @@ func (c *IRCClient) Connect() {
 	if err != nil {
 		panic(err)
 	}
+
 	c.connection = conn
 	// need to send the nick and user commands to the server
 	fmt.Fprintf(c.connection, "NICK %s\r\n", c.Nickname)
@@ -88,8 +90,33 @@ func (c *IRCClient) Disconnect() {
 }
 
 func (c *IRCClient) Send(msg string) {
-	fmt.Fprintf(c.connection, "%s\r\n", msg)
+	//fmt.Fprintf(c.connection, "%s\r\n", msg)
+	c.ParseUserInput(msg)
 	//fmt.Println("Sent message:", msg)
+}
+
+func (c *IRCClient) ParseUserInput(input string) {
+	if !strings.HasPrefix(input, "/") {
+		currentChannel := c.Channels[len(c.Channels)-1] // Send to the most recently joined channel
+		fmt.Fprintf(c.connection, "PRIVMSG %s :%s\r\n", currentChannel, input)
+	}
+
+	parts := strings.SplitN(input, " ", 3)
+	command := strings.ToUpper(parts[0])
+
+	switch command {
+	case "/JOIN":
+		if len(parts) > 1 {
+			c.Channels = append(c.Channels, parts[1])
+			fmt.Fprintf(c.connection, "JOIN %s\r\n", parts[1])
+		}
+	case "/MSG":
+		if len(parts) > 2 {
+			fmt.Fprintf(c.connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
+		}
+	case "/CHANNELS":
+		c.Incoming <- fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
+	}
 }
 
 func pong(msg string, conn net.Conn) {
