@@ -1,9 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/go-irc/irc"
 )
@@ -122,8 +126,70 @@ func (c *IRCClient) ParseUserInput(input string) {
 			fmt.Fprintf(c.connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
 		}
 	case "/CHANNELS":
-		c.Incoming <- fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
+		chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
+		msg := StructuredMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
+		c.Incoming <- msg
 	}
+}
+
+func StructuredMessageFromIRC(msg *irc.Message) StructuredMessage {
+
+	if len(msg.Params) >= 2 {
+		return StructuredMessage{
+			Timestamp: time.Now(),
+			User:      msg.Prefix.Name,
+			Message:   msg.Params[1],
+			Channel:   msg.Params[0],
+		}
+	}
+
+	return StructuredMessage{
+		Timestamp: time.Now(),
+		User:      msg.Prefix.Name,
+		Message:   msg.String(),
+		Channel:   msg.Params[0],
+	}
+}
+
+func handleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan StructuredMessage) bool {
+
+	switch msg.Command {
+	case "PING":
+		{
+			pong(line, conn)
+			return true
+		}
+	case "PRIVMSG":
+		{
+			if len(msg.Params) > 1 {
+				text := msg.Params[1]
+				if strings.HasPrefix(text, "\x01VERSION") {
+					target := msg.Name
+					if target == "" && msg.Prefix != nil {
+						target = msg.Prefix.Name
+					}
+
+					if target != "" {
+						// Respond with a NOTICE wrapped in \x01
+						fmt.Fprintf(conn, "NOTICE %s :\x01VERSION CustomGoClient:1.0\x01\r\n", target)
+					}
+					return true
+				}
+			}
+		}
+	case "JOIN":
+		{
+			incoming <- StructuredMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: "Joined channel: " + msg.Params[0], Channel: msg.Params[0]}
+			return true
+		}
+	case "QUIT":
+		{
+			incoming <- StructuredMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: "Left channel: " + msg.Params[0], Channel: msg.Params[0]}
+		}
+		return true
+	}
+
+	return false
 }
 
 func pong(msg string, conn net.Conn) {
@@ -146,30 +212,12 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 			continue
 		}
 
-		// handle PING commands
-		if msg.Command == "PING" {
-			pong(line, conn)
+		if handleCommands(conn, msg, line, c.Incoming) {
 			continue
 		}
 
-		// handle PRIVMSG commands
-		if msg.Command == "PRIVMSG" && len(msg.Params) > 1 {
-			text := msg.Params[1]
-			if strings.HasPrefix(text, "\x01VERSION") {
-				target := msg.Name
-				if target == "" && msg.Prefix != nil {
-					target = msg.Prefix.Name
-				}
-
-				if target != "" {
-					// Respond with a NOTICE wrapped in \x01
-					fmt.Fprintf(conn, "NOTICE %s :\x01VERSION CustomGoClient:1.0\x01\r\n", target)
-				}
-				continue
-			}
-		}
-
-		c.Incoming <- msg.String()
+		neatMsg := StructuredMessageFromIRC(msg)
+		c.Incoming <- neatMsg
 	}
 
 	if err := scanner.Err(); err != nil {
