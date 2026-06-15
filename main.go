@@ -58,7 +58,17 @@ func (c *IRCClient) ReadMessages() tea.Cmd {
 }
 
 func (c *IRCClient) Connect() {
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", c.Host, c.Port))
+	var conn net.Conn
+	var err error
+	address := fmt.Sprintf("%s:%d", c.Host, c.Port)
+
+	if c.TLS {
+		conn, err = tls.Dial("tcp", address, nil)
+
+	} else {
+		conn, err = net.Dial("tcp", address)
+	}
+
 	if err != nil {
 		panic(err)
 	}
