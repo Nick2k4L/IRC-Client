@@ -31,8 +31,8 @@ func main() {
 // Nickname, Host, Port, Channels, Messages, establishing a connection
 
 var commandMap map[string]string = map[string]string{
-	"JOIN": "Joined channel",
-	"PART": "Left channel",
+	"JOIN": "Joined",
+	"PART": "Left",
 }
 
 type IRCClient struct {
