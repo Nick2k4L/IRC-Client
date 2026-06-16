@@ -125,6 +125,13 @@ func (c *IRCClient) Send(msg string) {
 }
 
 func (c *IRCClient) ParseUserInput(input string) {
+
+	if len(c.Channels) == 0 {
+		msg := CommandMessage{Timestamp: time.Now(), Channel: "Client", Command: "ERROR: you need to specify at least one channel. Use /join <channel> to join a channel"}
+		c.Incoming <- &msg
+		return
+	}
+
 	if !strings.HasPrefix(input, "/") {
 		currentChannel := c.Channels[len(c.Channels)-1] // Send to the most recently joined channel
 		fmt.Fprintf(c.connection, "PRIVMSG %s :%s\r\n", currentChannel, input)
