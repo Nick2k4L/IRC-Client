@@ -1,290 +1,113 @@
 package main
 
 import (
-	"bufio"
-	"crypto/tls"
-	"errors"
-	"fmt"
-	"net"
 	"strings"
-	"time"
 
-	"github.com/go-irc/irc"
+	"github.com/Nick2k4L/IRC-Client/client"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
-func main() {
-	client := NewIRCClient("127.0.0.1", "Shinobu-Kocho-fan-3", 6668)
-	client.Connect()
-	go func() {
-		for msg := range client.Incoming {
-			fmt.Println(msg)
-			if strings.Contains(msg, "PING") {
-				pong(msg, client.connection)
+// Model holds the program's state
+type model struct {
+	client   *client.IRCClient
+	input    []rune
+	cursor   int
+	messages []string
+	err      error
+}
+
+// Init is called once at the start of the program
+func (m model) Init() tea.Cmd {
+	return m.client.ReadMessages()
+}
+
+// Update handles user input
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case client.IncomingMsg:
+
+		m.messages = append(m.messages, msg.Formatted())
+		return m, m.client.ReadMessages()
+	case client.ErrMsg:
+		m.err = msg
+		return m, tea.Quit
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q":
+			m.client.Disconnect()
+			return m, tea.Quit
+		case "enter":
+			text := strings.TrimSpace(string(m.input))
+			if text != "" {
+				m.client.Send(text)
+				m.messages = append(m.messages, "[YOU] : "+text)
+			}
+			m.input = nil
+			m.cursor = 0
+		case "backspace":
+			if m.cursor > 0 {
+				m.input = append(m.input[:m.cursor-1], m.input[m.cursor:]...)
+				m.cursor--
+			}
+		case "left":
+			if m.cursor > 0 {
+				m.cursor--
+			}
+		case "right":
+			if m.cursor < len(m.input) {
+				m.cursor++
+			}
+		default:
+			if len(msg.Runes) > 0 {
+				input := make([]rune, 0, len(m.input)+len(msg.Runes))
+				input = append(input, m.input[:m.cursor]...)
+				input = append(input, msg.Runes...)
+				input = append(input, m.input[m.cursor:]...)
+				m.input = input
+				m.cursor += len(msg.Runes)
 			}
 		}
-	}()
-	select {}
+	}
+	return m, nil
+}
+
+// View renders the UI
+func (m model) View() string {
+	var b strings.Builder
+
+	b.WriteString("IRC Client (Enter to send, Ctrl+C/q to quit)\n\n")
+	if len(m.messages) == 0 {
+		b.WriteString("No messages yet.\n")
+	} else {
+		b.WriteString(strings.Join(m.messages, "\n"))
+		b.WriteRune('\n')
+	}
+
+	if m.err != nil {
+		b.WriteString("\nError: ")
+		b.WriteString(m.err.Error())
+		b.WriteRune('\n')
+	}
+
+	b.WriteString("\n> ")
+	b.WriteString(string(m.input[:m.cursor]))
+	b.WriteRune('|')
+	b.WriteString(string(m.input[m.cursor:]))
+
+	return b.String()
+}
+
+func main() {
+	client := client.NewIRCClient("irc.hybridirc.com", "Shinobu123498", 6697, true)
+	client.Connect()
+
+	p := tea.NewProgram(model{client: client})
+	if _, err := p.Run(); err != nil {
+		panic(err)
+	}
+
 }
 
 // So what are the fundamentals in creating an IRC Client?
 
 // Nickname, Host, Port, Channels, Messages, establishing a connection
-
-var commandMap map[string]string = map[string]string{
-	"JOIN": "Joined",
-	"PART": "Left",
-}
-
-type IRCClient struct {
-	Host       string
-	Nickname   string
-	Port       int
-	connection net.Conn
-	Channels   []string // Keep some memory of every channel we have `joined`
-	Incoming   chan StructuredMessage
-	TLS        bool
-	Quit       chan struct{}
-}
-
-type StructuredMessage interface {
-	RawToReadable(msg *irc.Message) StructuredMessage
-	Formatted() string
-}
-
-type ChannelMessage struct {
-	Timestamp              time.Time
-	User, Message, Channel string
-}
-
-type CommandMessage struct {
-	Timestamp                      time.Time
-	User, Reason, Channel, Command string
-}
-
-func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
-	return &IRCClient{
-		Host:     host,
-		Nickname: nickname,
-		Port:     port,
-		TLS:      tls,
-		Incoming: make(chan StructuredMessage, 32),
-		Quit:     make(chan struct{}),
-	}
-}
-
-func (c *IRCClient) ReadMessages() tea.Cmd {
-	return func() tea.Msg {
-		msg, ok := <-c.Incoming
-		if !ok {
-			return errMsg(errors.New("connection closed"))
-		}
-		return incomingMsg(msg)
-	}
-}
-
-func (c *IRCClient) Connect() {
-	var conn net.Conn
-	var err error
-	address := fmt.Sprintf("%s:%d", c.Host, c.Port)
-
-	if c.TLS {
-		conn, err = tls.Dial("tcp", address, nil)
-
-	} else {
-		conn, err = net.Dial("tcp", address)
-	}
-
-	if err != nil {
-		panic(err)
-	}
-
-	c.connection = conn
-	// need to send the nick and user commands to the server
-	fmt.Fprintf(c.connection, "NICK %s\r\n", c.Nickname)
-	fmt.Fprintf(c.connection, "USER %s 0 * :%s\r\n", c.Nickname, c.Nickname)
-	go c.readLoop(c.connection)
-
-}
-
-func (c *IRCClient) Disconnect() {
-	close(c.Quit)
-	if c.connection != nil {
-		_ = c.connection.Close()
-	}
-}
-
-func (c *IRCClient) Send(msg string) {
-	//fmt.Fprintf(c.connection, "%s\r\n", msg)
-	c.ParseUserInput(msg)
-	//fmt.Println("Sent message:", msg)
-}
-
-func (c *IRCClient) ParseUserInput(input string) {
-
-	if len(c.Channels) == 0 {
-		msg := CommandMessage{Timestamp: time.Now(), Channel: "Client", Command: "ERROR: you need to specify at least one channel. Use /join <channel> to join a channel"}
-		c.Incoming <- &msg
-		return
-	}
-
-	if !strings.HasPrefix(input, "/") {
-		if len(c.Channels) == 0 {
-			msg := CommandMessage{Timestamp: time.Now(), Channel: "Client", Command: "ERROR: you need to specify at least one channel. Use /join <channel> to join a channel"}
-			c.Incoming <- &msg
-			return
-		}
-		currentChannel := c.Channels[len(c.Channels)-1] // Send to the most recently joined channel
-		fmt.Fprintf(c.connection, "PRIVMSG %s :%s\r\n", currentChannel, input)
-	}
-
-	parts := strings.SplitN(input, " ", 3)
-	command := strings.ToUpper(parts[0])
-
-	switch command {
-	case "/JOIN":
-		if len(parts) > 1 {
-			c.Channels = append(c.Channels, parts[1])
-			fmt.Fprintf(c.connection, "JOIN %s\r\n", strings.TrimSpace(parts[1]))
-		}
-	case "/MSG":
-		if len(parts) > 2 {
-			fmt.Fprintf(c.connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
-		}
-
-	case "/PART":
-		// Logic for parting
-		if len(parts) > 1 {
-			fmt.Fprintf(c.connection, "PART %s\r\n", strings.TrimSpace(parts[1]))
-			c.Channels = c.Channels[:len(c.Channels)-1]
-		}
-	case "/NICK":
-		if len(parts) > 1 {
-			fmt.Fprintf(c.connection, "NICK %s\r\n", strings.TrimSpace(parts[1]))
-			c.Nickname = parts[1] // Update the nickname in the client state?
-		}
-
-	case "/ME":
-		if len(parts) > 1 {
-			fmt.Fprintf(c.connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", c.Channels[len(c.Channels)-1], strings.TrimSpace(parts[2]))
-		}
-
-	case "/CHANNELS":
-		chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
-		msg := ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
-		c.Incoming <- &msg
-	}
-}
-
-func (cm *ChannelMessage) RawToReadable(msg *irc.Message) StructuredMessage {
-
-	if len(msg.Params) >= 2 {
-		return &ChannelMessage{
-			Timestamp: time.Now(),
-			User:      msg.Prefix.Name,
-			Message:   msg.Params[1],
-			Channel:   msg.Params[0],
-		}
-	}
-
-	return &ChannelMessage{
-		Timestamp: time.Now(),
-		User:      msg.Prefix.Name,
-		Message:   msg.String(),
-		Channel:   msg.Params[0],
-	}
-}
-
-func (cm *ChannelMessage) Formatted() string {
-	return fmt.Sprintf("[%s] {%s} <%s> : %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.User, cm.Message)
-}
-
-func (cm *CommandMessage) RawToReadable(msg *irc.Message) StructuredMessage {
-	return &CommandMessage{
-		Timestamp: time.Now(),
-		User:      msg.Prefix.Name,
-		Command:   msg.Command,
-		Channel:   msg.Params[0],
-	}
-}
-
-func (cm *CommandMessage) Formatted() string {
-	if cm.User != "" {
-		return fmt.Sprintf("[%s] # %s %s %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command], cm.Channel)
-	}
-
-	return fmt.Sprintf("[%s] : {%s} %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.Command)
-}
-
-func handleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan StructuredMessage) bool {
-
-	switch msg.Command {
-	case "PING":
-		{
-			pong(line, conn)
-			return true
-		}
-	case "PRIVMSG":
-		{
-			if len(msg.Params) > 1 {
-				text := msg.Params[1]
-				if strings.HasPrefix(text, "\x01VERSION") {
-					target := msg.Name
-					if target == "" && msg.Prefix != nil {
-						target = msg.Prefix.Name
-					}
-
-					if target != "" {
-						// Respond with a NOTICE wrapped in \x01
-						fmt.Fprintf(conn, "NOTICE %s :\x01VERSION CustomGoClient:1.0\x01\r\n", target)
-					}
-					return true
-				}
-			}
-		}
-	case "JOIN", "PART":
-		{
-			incoming <- (&CommandMessage{}).RawToReadable(msg)
-			return true
-		}
-	case "QUIT":
-		{
-			// display of quit is not really necessary.
-		}
-		return true
-	}
-
-	return false
-}
-
-func pong(msg string, conn net.Conn) {
-	token := strings.Split(msg, " ")[1]
-	fmt.Fprintf(conn, "PONG %s\r\n", token)
-}
-
-func (c *IRCClient) readLoop(conn net.Conn) {
-	// From the connection, read line by line and print it out to the user:
-	scanner := bufio.NewScanner(conn)
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		msg, err := irc.ParseMessage(line)
-
-		if err != nil {
-			fmt.Println("Error parsing message:", err)
-			continue
-		}
-
-		if handleCommands(conn, msg, line, c.Incoming) {
-			continue
-		}
-
-		neatMsg := (&ChannelMessage{}).RawToReadable(msg)
-		c.Incoming <- neatMsg
-	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Println("Error reading from connection:", err)
-	}
-	close(c.Incoming)
-}
