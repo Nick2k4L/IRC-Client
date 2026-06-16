@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/Nick2k4L/IRC-Client/helpers"
 	"github.com/go-irc/irc"
@@ -74,23 +75,23 @@ func HandleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan 
 		}
 	case "JOIN", "PART":
 		{
-			incoming <- (&helpers.CommandMessage{}).RawToReadable(msg)
+			incoming <- helpers.ParseCommandMessages(msg)
 			return true
 		}
 		// change this most likely
 	case "NICK":
 		{
-			incoming <- (&helpers.CommandMessage{}).RawToReadable(msg)
+			incoming <- helpers.ParseCommandMessages(msg)
 			return true
 		}
 	case "MODE":
 		{
-			incoming <- (&helpers.CommandMessage{}).RawToReadable(msg)
+			incoming <- helpers.ParseCommandMessages(msg)
 			return true
 		}
 	case "NOTICE":
 		{
-			incoming <- (&helpers.CommandMessage{}).RawToReadable(msg)
+			incoming <- helpers.ParseCommandMessages(msg)
 			return true
 		}
 	case "QUIT":
