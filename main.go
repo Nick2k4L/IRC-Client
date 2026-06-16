@@ -52,18 +52,13 @@ type StructuredMessage interface {
 }
 
 type ChannelMessage struct {
-	Timestamp time.Time
-	User      string
-	Message   string
-	Channel   string
+	Timestamp              time.Time
+	User, Message, Channel string
 }
 
 type CommandMessage struct {
-	Timestamp time.Time
-	User      string
-	Reason    string
-	Channel   string
-	Command   string
+	Timestamp                      time.Time
+	User, Reason, Channel, Command string
 }
 
 func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
@@ -149,12 +144,30 @@ func (c *IRCClient) ParseUserInput(input string) {
 	case "/JOIN":
 		if len(parts) > 1 {
 			c.Channels = append(c.Channels, parts[1])
-			fmt.Fprintf(c.connection, "JOIN %s\r\n", parts[1])
+			fmt.Fprintf(c.connection, "JOIN %s\r\n", strings.TrimSpace(parts[1]))
 		}
 	case "/MSG":
 		if len(parts) > 2 {
 			fmt.Fprintf(c.connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
 		}
+
+	case "/PART":
+		// Logic for parting
+		if len(parts) > 1 {
+			fmt.Fprintf(c.connection, "PART %s\r\n", strings.TrimSpace(parts[1]))
+			c.Channels = c.Channels[:len(c.Channels)-1]
+		}
+	case "/NICK":
+		if len(parts) > 1 {
+			fmt.Fprintf(c.connection, "NICK %s\r\n", strings.TrimSpace(parts[1]))
+			c.Nickname = parts[1] // Update the nickname in the client state?
+		}
+
+	case "/ME":
+		if len(parts) > 1 {
+			fmt.Fprintf(c.connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", c.Channels[len(c.Channels)-1], strings.TrimSpace(parts[2]))
+		}
+
 	case "/CHANNELS":
 		chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
 		msg := ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
@@ -196,8 +209,9 @@ func (cm *CommandMessage) RawToReadable(msg *irc.Message) StructuredMessage {
 
 func (cm *CommandMessage) Formatted() string {
 	if cm.User != "" {
-		return fmt.Sprintf("[%s] # <%s> %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command])
+		return fmt.Sprintf("[%s] # %s %s %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command], cm.Channel)
 	}
+
 	return fmt.Sprintf("[%s] : {%s} %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.Command)
 }
 
@@ -232,10 +246,11 @@ func handleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan 
 			incoming <- (&CommandMessage{}).RawToReadable(msg)
 			return true
 		}
-		//case "QUIT":
-		//	{
-		//	}
-		//	return true
+	case "QUIT":
+		{
+			// display of quit is not really necessary.
+		}
+		return true
 	}
 
 	return false
@@ -244,7 +259,6 @@ func handleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan 
 func pong(msg string, conn net.Conn) {
 	token := strings.Split(msg, " ")[1]
 	fmt.Fprintf(conn, "PONG %s\r\n", token)
-	fmt.Printf("PONG sent: %s\r\n", token)
 }
 
 func (c *IRCClient) readLoop(conn net.Conn) {
