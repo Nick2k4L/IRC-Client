@@ -103,12 +103,15 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 			continue
 		}
 
+		if servercmds.HandleNumeric(conn, msg, line, c.Incoming) {
+			continue
+		}
+
 		if servercmds.HandleCommands(conn, msg, line, c.Incoming) {
 			continue
 		}
 
-		neatMsg := (&helpers.ChannelMessage{}).RawToReadable(msg)
-		c.Incoming <- neatMsg
+		c.Incoming <- helpers.ParseChannelMessages(msg)
 	}
 
 	if err := scanner.Err(); err != nil {
