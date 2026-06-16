@@ -14,6 +14,38 @@ func pong(msg string, conn net.Conn) {
 	fmt.Fprintf(conn, "PONG %s\r\n", token)
 }
 
+func HandleNumeric(conn net.Conn, msg *irc.Message, line string, incoming chan helpers.StructuredMessage) bool {
+
+	switch msg.Command {
+	case "001", "002", "003", "004", "005":
+		{
+
+		}
+	case "331", "332", "333", "TOPIC":
+		{
+			if msg.Command == "331" {
+				// 331 is "No topic is set", handle or skip
+				return true
+			}
+			// This is the topic of a channel, we can display it to the user
+			incoming <- helpers.ParseTopicMessage(msg)
+			return true
+		}
+	case "353":
+		{
+
+		}
+	case "433":
+		{
+			// Generate a message to the user saying, use /nick to change nick name
+			incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Nickname already in use. Use /nick to change nick name."}
+			return true
+		}
+	}
+
+	return false
+}
+
 func HandleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan helpers.StructuredMessage) bool {
 
 	switch msg.Command {
