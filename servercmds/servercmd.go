@@ -15,6 +15,10 @@ func pong(msg string, conn net.Conn) {
 	fmt.Fprintf(conn, "PONG %s\r\n", token)
 }
 
+var UserList = helpers.UserListMessage{
+	UserList: make(map[string][]string),
+}
+
 func HandleNumeric(conn net.Conn, msg *irc.Message, line string, incoming chan helpers.StructuredMessage) bool {
 
 	switch msg.Command {
@@ -34,7 +38,29 @@ func HandleNumeric(conn net.Conn, msg *irc.Message, line string, incoming chan h
 		}
 	case "353":
 		{
+			helpers.ParseUserListMessage(msg, UserList)
+			return true
+		}
+	case "366":
+		{
+			newMap := make(map[string][]string, len(UserList.UserList))
 
+			for k, v := range UserList.UserList {
+				// Allocate new slice with same capacity
+				newSlice := make([]string, len(v))
+				// Copy elements
+				copy(newSlice, v)
+				// Assign to new map
+				newMap[k] = newSlice
+			}
+
+			incoming <- &helpers.UserListMessage{
+				UserList: newMap,
+				Channel:  helpers.LastChannel,
+			}
+
+			delete(UserList.UserList, helpers.LastChannel) // Clear the user list for the channel after sending it
+			return true
 		}
 	case "433":
 		{

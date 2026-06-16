@@ -177,5 +177,10 @@ func (c *IRCClient) ParseUserInput(input string) {
 		chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
 		msg := helpers.ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
 		c.Incoming <- &msg
+	case "/NAMES":
+		if len(c.Channels) > 1 {
+			fmt.Fprintf(c.Connection, "NAMES %s\r\n", c.Channels[len(c.Channels)-1])
+		}
 	}
+
 }

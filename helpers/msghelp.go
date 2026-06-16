@@ -3,6 +3,7 @@ package helpers
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-irc/irc"
@@ -13,6 +14,8 @@ var commandMap map[string]string = map[string]string{
 	"PART": "Left",
 	"NICK": "Changed Nickname",
 }
+
+var LastChannel string
 
 type StructuredMessage interface {
 	Formatted() string
@@ -53,6 +56,31 @@ type TopicMetadataMessage struct {
 	Channel   string
 	User      string
 	Time      time.Time
+}
+
+type UserListMessage struct {
+	// maps to channel and list of users....
+	UserList map[string][]string
+	Channel  string
+}
+
+// USER LIST MESSAGES
+
+func ParseUserListMessage(msg *irc.Message, ul UserListMessage) {
+
+	if len(msg.Params) > 3 {
+		channel := msg.Params[2]
+		rawUsers := msg.Params[3]
+
+		users := strings.Split(rawUsers, " ")
+		ul.UserList[channel] = append(ul.UserList[channel], users...)
+		LastChannel = channel
+	}
+}
+
+func (ul *UserListMessage) Formatted() string {
+	separated := strings.Join(ul.UserList[LastChannel], "\n*")
+	return fmt.Sprintf("USER LIST:\n %v", separated)
 }
 
 // TOPIC MESSAGES
