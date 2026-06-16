@@ -25,6 +25,7 @@ type IRCClient struct {
 	Port       int
 	Connection net.Conn
 	Channels   []string // Keep some memory of every channel we have `joined`
+	DirectMsgs []string // Keep some memory of every channel we have `dmed`
 	Incoming   chan helpers.StructuredMessage
 	TLS        bool
 	Quit       chan struct{}
@@ -36,7 +37,7 @@ func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
 		Nickname: nickname,
 		Port:     port,
 		TLS:      tls,
-		Incoming: make(chan helpers.StructuredMessage, 32),
+		Incoming: make(chan helpers.StructuredMessage, 512),
 		Quit:     make(chan struct{}),
 	}
 }
@@ -141,7 +142,7 @@ func (c *IRCClient) ParseUserInput(input string) {
 	case "/MSG":
 		if len(parts) > 2 {
 			fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
-
+			c.DirectMsgs = append(c.DirectMsgs, parts[2])
 			// TODO: Change to a DM message type
 			dmMsg := &helpers.ChannelMessage{
 				Timestamp: time.Now(),
