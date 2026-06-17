@@ -20,15 +20,16 @@ type IncomingMsg helpers.StructuredMessage
 type ErrMsg error
 
 type IRCClient struct {
-	Host       string
-	Nickname   string
-	Port       int
-	Connection net.Conn
-	Channels   []string // Keep some memory of every channel we have `joined`
-	DirectMsgs []string // Keep some memory of every channel we have `dmed`
-	Incoming   chan helpers.StructuredMessage
-	TLS        bool
-	Quit       chan struct{}
+	Host        string
+	Nickname    string
+	Port        int
+	Connection  net.Conn
+	Channels    []string // Keep some memory of every channel we have `joined`
+	DirectMsgs  []string // Keep some memory of every channel we have `dmed`
+	LastCommand string   // Keep track of the last command we sent to the server, so we can handle responses to it better
+	Incoming    chan helpers.StructuredMessage
+	TLS         bool
+	Quit        chan struct{}
 }
 
 func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
@@ -103,7 +104,7 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 			continue
 		}
 
-		if servercmds.HandleNumeric(conn, msg, line, c.Incoming) {
+		if servercmds.HandleNumeric(conn, msg, c.LastCommand, line, c.Incoming) {
 			continue
 		}
 
@@ -135,6 +136,7 @@ func (c *IRCClient) ParseUserInput(input string) {
 
 	parts := strings.SplitN(input, " ", 3)
 	command := strings.ToUpper(parts[0])
+	c.LastCommand = command
 
 	switch command {
 	case "/JOIN":
@@ -177,8 +179,9 @@ func (c *IRCClient) ParseUserInput(input string) {
 		chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
 		msg := helpers.ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
 		c.Incoming <- &msg
+
 	case "/NAMES":
-		if len(c.Channels) > 1 {
+		if len(c.Channels) >= 1 {
 			fmt.Fprintf(c.Connection, "NAMES %s\r\n", c.Channels[len(c.Channels)-1])
 		}
 	}

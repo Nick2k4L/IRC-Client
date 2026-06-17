@@ -78,6 +78,24 @@ func ParseUserListMessage(msg *irc.Message, ul UserListMessage) {
 	}
 }
 
+func DeepCopyUserListMessage(ul UserListMessage) StructuredMessage {
+	newMap := make(map[string][]string, len(ul.UserList))
+
+	for k, v := range ul.UserList {
+		// Allocate new slice with same capacity
+		newSlice := make([]string, len(v))
+		// Copy elements
+		copy(newSlice, v)
+		// Assign to new map
+		newMap[k] = newSlice
+	}
+
+	return &UserListMessage{
+		UserList: newMap,
+		Channel:  LastChannel,
+	}
+
+}
 func (ul *UserListMessage) Formatted() string {
 	separated := strings.Join(ul.UserList[LastChannel], "\n*")
 	return fmt.Sprintf("USER LIST:\n %v", separated)

@@ -19,7 +19,7 @@ var UserList = helpers.UserListMessage{
 	UserList: make(map[string][]string),
 }
 
-func HandleNumeric(conn net.Conn, msg *irc.Message, line string, incoming chan helpers.StructuredMessage) bool {
+func HandleNumeric(conn net.Conn, msg *irc.Message, lastcommand, line string, incoming chan helpers.StructuredMessage) bool {
 
 	switch msg.Command {
 	case "001", "002", "003", "004", "005":
@@ -43,24 +43,11 @@ func HandleNumeric(conn net.Conn, msg *irc.Message, line string, incoming chan h
 		}
 	case "366":
 		{
-			newMap := make(map[string][]string, len(UserList.UserList))
-
-			for k, v := range UserList.UserList {
-				// Allocate new slice with same capacity
-				newSlice := make([]string, len(v))
-				// Copy elements
-				copy(newSlice, v)
-				// Assign to new map
-				newMap[k] = newSlice
+			if lastcommand == "/NAMES" {
+				incoming <- helpers.DeepCopyUserListMessage(UserList) // Send a copy of the user
+				return true
 			}
-
-			incoming <- &helpers.UserListMessage{
-				UserList: newMap,
-				Channel:  helpers.LastChannel,
-			}
-
 			delete(UserList.UserList, helpers.LastChannel) // Clear the user list for the channel after sending it
-			return true
 		}
 	case "433":
 		{
@@ -68,6 +55,7 @@ func HandleNumeric(conn net.Conn, msg *irc.Message, line string, incoming chan h
 			incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Nickname already in use. Use /nick to change nick name."}
 			return true
 		}
+	default:
 	}
 
 	return false
