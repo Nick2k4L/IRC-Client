@@ -64,6 +64,33 @@ type UserListMessage struct {
 	Channel  string
 }
 
+type ServerMessage struct {
+	Timestamp time.Time
+	Message   string
+}
+
+// Server Messages
+
+func ParseServerMessage(msg *irc.Message) StructuredMessage {
+	if len(msg.Params) == 0 {
+		return &ServerMessage{
+			Timestamp: time.Now(),
+			Message:   "No message content",
+		}
+	}
+
+	fullMessage := strings.Join(msg.Params[1:], " ")
+	return &ServerMessage{
+		Timestamp: time.Now(),
+		Message:   fullMessage,
+	}
+
+}
+
+func (sm *ServerMessage) Formatted() string {
+	return fmt.Sprintf("[%s] SERVER: %s", sm.Timestamp.Format("15:04"), sm.Message)
+}
+
 // USER LIST MESSAGES
 
 func ParseUserListMessage(msg *irc.Message, ul UserListMessage) {
@@ -133,7 +160,7 @@ func (tmm *TopicMetadataMessage) Formatted() string {
 	return fmt.Sprintf("[%s] {%s} Set by %s on %s", tmm.Timestamp.Format("15:04"), tmm.Channel, tmm.User, tmm.Time.Format(time.RFC850))
 }
 
-// RAW MESSAGES
+// RAW MESSAGES -- this is mostly for debugging
 
 func ParseRawMessages(msg *irc.Message) StructuredMessage {
 	return &RawMessage{

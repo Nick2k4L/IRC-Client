@@ -24,7 +24,14 @@ func HandleNumeric(conn net.Conn, msg *irc.Message, lastcommand, line string, in
 	switch msg.Command {
 	case "001", "002", "003", "004", "005":
 		{
-
+			incoming <- helpers.ParseServerMessage(msg)
+			return true
+		}
+	case "251", "252", "253", "254", "255", "265", "266", "250", "396":
+		{
+			// We don't really care about these raw stats for the UI right now.
+			// Return true so they don't get passed to the RawMessage fallback.
+			return true
 		}
 	case "331", "332", "333", "TOPIC":
 		{
@@ -49,13 +56,26 @@ func HandleNumeric(conn net.Conn, msg *irc.Message, lastcommand, line string, in
 			}
 			delete(UserList.UserList, helpers.LastChannel) // Clear the user list for the channel after sending it
 		}
+	case "372", "375":
+		{
+			// MOTD messages, we can display them to the user
+			// TODO: Think about making it a MOTDMessage
+			incoming <- helpers.ParseServerMessage(msg)
+			return true
+		}
+	case "376":
+		{
+			incoming <- &helpers.ServerMessage{Timestamp: time.Now(), Message: "<--- Connection Established --->"}
+			// TODO: Can add logic here to connect to multiple channels.
+			return true
+		}
 	case "433":
 		{
 			// Generate a message to the user saying, use /nick to change nick name
 			incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Nickname already in use. Use /nick to change nick name."}
 			return true
 		}
-	default:
+
 	}
 
 	return false
@@ -86,13 +106,15 @@ func HandleCommands(conn net.Conn, msg *irc.Message, line string, incoming chan 
 					return true
 				}
 			}
+
+			// Add a CTCP action here.
 		}
 	case "JOIN", "PART":
 		{
 			incoming <- helpers.ParseCommandMessages(msg)
 			return true
 		}
-		// change this most likely
+		// change this most likely -- announcement that someone has changed their nickname
 	case "NICK":
 		{
 			incoming <- helpers.ParseCommandMessages(msg)

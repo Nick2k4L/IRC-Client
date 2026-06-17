@@ -111,7 +111,6 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 		if servercmds.HandleCommands(conn, msg, line, c.Incoming) {
 			continue
 		}
-
 		c.Incoming <- helpers.ParseChannelMessages(msg)
 	}
 
@@ -123,11 +122,9 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 
 func (c *IRCClient) ParseUserInput(input string) {
 
-	// TODO: Change this to an error message command
 	if !strings.HasPrefix(input, "/") {
 		if len(c.Channels) == 0 {
-			msg := helpers.CommandMessage{Timestamp: time.Now(), Channel: "Client", Command: "ERROR: you need to specify at least one channel. Use /join <channel> to join a channel"}
-			c.Incoming <- &msg
+			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "You need to join at least one channel. Use /join <channel> to join a channel"}
 			return
 		}
 		currentChannel := c.Channels[len(c.Channels)-1] // Send to the most recently joined channel
@@ -181,7 +178,7 @@ func (c *IRCClient) ParseUserInput(input string) {
 		c.Incoming <- &msg
 
 	case "/NAMES":
-		if len(c.Channels) >= 1 {
+		if len(c.Channels) > 0 {
 			fmt.Fprintf(c.Connection, "NAMES %s\r\n", c.Channels[len(c.Channels)-1])
 		}
 	}
