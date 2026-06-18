@@ -16,6 +16,7 @@ type IncomingMsg helpers.StructuredMessage
 
 type ErrMsg error
 
+// TODO: add a current channel type, and remove all c.Channels[len(c.Channels)-1]...
 type IRCClient struct {
 	Host        string
 	Nickname    string

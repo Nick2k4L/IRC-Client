@@ -274,7 +274,10 @@ func (c *IRCClient) ParseUserInput(input string) {
 	case "/ME":
 		{
 			if len(parts) > 1 {
-				fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", c.Channels[len(c.Channels)-1], strings.TrimSpace(parts[2]))
+				action := strings.Join(parts[1:], " ")
+
+				fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", c.Channels[len(c.Channels)-1], action)
+				c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: c.Nickname, Message: fmt.Sprintf("✧ %s ✧", action), Channel: c.Channels[len(c.Channels)-1]}
 			}
 		}
 
