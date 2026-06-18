@@ -65,7 +65,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// 4. Handle Key Presses
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q": // Note: 'q' here means typing 'q' alone will quit. Consider changing this if users need to type 'q' in chat!
+		case "ctrl+c": // Note: 'q' here means typing 'q' alone will quit. Consider changing this if users need to type 'q' in chat!
 			m.client.Disconnect()
 			return m, tea.Quit
 

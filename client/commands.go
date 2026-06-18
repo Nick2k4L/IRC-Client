@@ -35,6 +35,13 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 			// Return true so they don't get passed to the RawMessage fallback.
 			return true
 		}
+	case "311", "312", "317", "319", "344", "671":
+		{
+			// These are WHOIS responses, we can display them to the user
+			// this will return a server message...
+			c.Incoming <- helpers.ParseWhoIsMessage(msg)
+			return true
+		}
 	case "331", "332", "333", "TOPIC":
 		{
 			if msg.Command == "331" {
@@ -43,6 +50,11 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 			}
 			// This is the topic of a channel, we can display it to the user
 			c.Incoming <- helpers.ParseTopicMessage(msg)
+			return true
+		}
+	case "318":
+		{
+			// end of who is list
 			return true
 		}
 	// displayed per buffer
@@ -111,6 +123,20 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 					}
 					return true
 				}
+
+				// THINK ABOUT MAKING AN ACTION MESSAGE?
+				if len(msg.Params) > 1 {
+					text := msg.Params[1]
+					if strings.HasPrefix(text, "\x01ACTION ") {
+						// Strip the \x01ACTION and the trailing \x01
+						actionText := strings.TrimPrefix(text, "\x01ACTION ")
+						actionText = strings.TrimSuffix(actionText, "\x01")
+
+						c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: fmt.Sprintf("✧ %s ✧", actionText), Channel: msg.Params[0]}
+						return true
+					}
+				}
+
 				// else, it is most likely a normal message, but we need to handle DMS
 				if len(msg.Params) > 1 {
 					if strings.HasPrefix(msg.Params[0], "#") {
@@ -128,52 +154,53 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 					}
 				}
 			}
-
-			// Add a CTCP action here.
 		}
+
+		// Add a CTCP action here.
+
 	case "JOIN", "PART":
-
-		c.Incoming <- helpers.ParseCommandMessages(msg)
-		return true
-
+		{
+			c.Incoming <- helpers.ParseCommandMessages(msg)
+			return true
+		}
 	case "NICK":
-
-		c.Incoming <- helpers.ParseCommandMessages(msg)
-		return true
-
+		{
+			c.Incoming <- helpers.ParseCommandMessages(msg)
+			return true
+		}
 	case "MODE":
-
-		c.Incoming <- helpers.ParseCommandMessages(msg)
-		return true
-
+		{
+			c.Incoming <- helpers.ParseCommandMessages(msg)
+			return true
+		}
 	case "NOTICE":
-
-		c.Incoming <- helpers.ParseCommandMessages(msg)
-		return true
-
+		{
+			c.Incoming <- helpers.ParseCommandMessages(msg)
+			return true
+		}
 		// channel, user who got kicked, admin who kicked, and a reason
 	case "KICK":
-
-		c.Incoming <- helpers.ParseCommandMessages(msg)
-		return true
-
+		{
+			c.Incoming <- helpers.ParseCommandMessages(msg)
+			return true
+		}
 		// need to handle invites from a user...
 		// might need to be its own type of message since we do have `extra logic` attached to it.
 	case "INVITE":
-
-		c.Incoming <- helpers.ParseCommandMessages(msg)
-		return true
-
+		{
+			c.Incoming <- helpers.ParseCommandMessages(msg)
+			return true
+		}
 	case "ERROR":
-
-		c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Connection error. Please check your connection and try again."}
-		return true
-
+		{
+			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Connection error. Please check your connection and try again."}
+			return true
+		}
 	case "QUIT":
 		{
 			// display of quit is not really necessary.
+			return true
 		}
-		return true
 	}
 
 	return false
@@ -204,78 +231,97 @@ func (c *IRCClient) ParseUserInput(input string) {
 
 	switch command {
 	case "/JOIN":
-		if len(parts) > 1 {
-			c.Channels = append(c.Channels, parts[1])
-			fmt.Fprintf(c.Connection, "JOIN %s\r\n", strings.TrimSpace(parts[1]))
+		{
+			if len(parts) > 1 {
+				c.Channels = append(c.Channels, parts[1])
+				fmt.Fprintf(c.Connection, "JOIN %s\r\n", strings.TrimSpace(parts[1]))
+			}
 		}
 	case "/MSG":
-		if len(parts) > 2 {
-			fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
-			c.DirectMsgs = append(c.DirectMsgs, parts[2])
-			// TODO: Change to a DM message type
-			//dmMsg1 := &helpers.ChannelMessage{
-			//	Timestamp: time.Now(),
-			//	User:      c.Nickname,      // It's from you
-			//	Message:   parts[2],        // The message content
-			//	Channel:   "->" + parts[1], // Visual indicator that this is an outbound DM
-			//}
+		{
+			if len(parts) > 2 {
+				fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
+				c.DirectMsgs = append(c.DirectMsgs, parts[2])
 
-			dmMsg := &helpers.DirectMessage{
-				Timestamp: time.Now(),
-				Sender:    c.Nickname,
-				Receiver:  parts[1],
-				Message:   parts[2],
+				dmMsg := &helpers.DirectMessage{
+					Timestamp: time.Now(),
+					Sender:    c.Nickname,
+					Receiver:  parts[1],
+					Message:   parts[2],
+				}
+				c.Incoming <- dmMsg
 			}
-			c.Incoming <- dmMsg
 		}
 
 	case "/PART":
-		// Logic for parting
-		if len(parts) > 1 {
-			fmt.Fprintf(c.Connection, "PART %s\r\n", strings.TrimSpace(parts[1]))
-			c.Channels = c.Channels[:len(c.Channels)-1]
+		{
+			// Logic for parting
+			if len(parts) > 1 {
+				fmt.Fprintf(c.Connection, "PART %s\r\n", strings.TrimSpace(parts[1]))
+				c.Channels = c.Channels[:len(c.Channels)-1]
+			}
 		}
 	case "/NICK":
-		if len(parts) > 1 {
-			fmt.Fprintf(c.Connection, "NICK %s\r\n", strings.TrimSpace(parts[1]))
-			c.Nickname = parts[1] // Update the nickname in the client state?
+		{
+			if len(parts) > 1 {
+				fmt.Fprintf(c.Connection, "NICK %s\r\n", strings.TrimSpace(parts[1]))
+
+				// TODO: Wait until we get a proper ACK from the server
+				c.Nickname = parts[1] // Update the nickname in the client state?
+			}
 		}
 
 	case "/ME":
-		if len(parts) > 1 {
-			fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", c.Channels[len(c.Channels)-1], strings.TrimSpace(parts[2]))
+		{
+			if len(parts) > 1 {
+				fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", c.Channels[len(c.Channels)-1], strings.TrimSpace(parts[2]))
+			}
 		}
 
 	case "/CHANNELS":
-		chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
-		msg := helpers.ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
-		c.Incoming <- &msg
+		{
+			//chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
+			//msg := helpers.ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
+			c.Incoming <- &helpers.ServerMessage{Timestamp: time.Now(), Message: fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))}
+		}
 
 	case "/NAMES":
-		if len(c.Channels) > 0 {
-			fmt.Fprintf(c.Connection, "NAMES %s\r\n", c.Channels[len(c.Channels)-1])
+		{
+			if len(c.Channels) > 0 {
+				fmt.Fprintf(c.Connection, "NAMES %s\r\n", c.Channels[len(c.Channels)-1])
+			}
 		}
 
 	case "/WHOIS":
-		if len(parts) > 1 {
-			fmt.Fprintf(c.Connection, "WHOIS %s\r\n", strings.TrimSpace(parts[1]))
+		{
+			if len(parts) > 1 {
+				fmt.Fprintf(c.Connection, "WHOIS %s\r\n", strings.TrimSpace(parts[1]))
+			}
 		}
 	case "/QUIT":
-		if len(parts) > 1 {
-			fmt.Fprintf(c.Connection, "QUIT :%s\r\n", strings.Join(parts[1:], " "))
-		}
-	case "/AWAY":
-		if len(parts) > 1 {
-			fmt.Fprintf(c.Connection, "AWAY :%s\r\n", strings.Join(parts[1:], " "))
-		}
-	case "/TOPIC":
-		if len(parts) > 2 {
-			fmt.Fprintf(c.Connection, "TOPIC %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[2])
-		} else if len(parts) == 1 {
-			// TOPIC OF CURRENT CHANNEL
-			fmt.Fprintf(c.Connection, "TOPIC %s\r\n", c.Channels[len(c.Channels)-1])
+		{
+			if len(parts) > 1 {
+				fmt.Fprintf(c.Connection, "QUIT :%s\r\n", strings.Join(parts[1:], " "))
+			} else {
+				fmt.Fprintf(c.Connection, "QUIT\r\n")
+			}
 		}
 
+	case "/AWAY":
+		{
+			if len(parts) > 1 {
+				fmt.Fprintf(c.Connection, "AWAY :%s\r\n", strings.Join(parts[1:], " "))
+			}
+		}
+	case "/TOPIC":
+		{
+			if len(parts) > 2 {
+				fmt.Fprintf(c.Connection, "TOPIC %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[2])
+			} else {
+				// TOPIC OF CURRENT CHANNEL
+				fmt.Fprintf(c.Connection, "TOPIC %s\r\n", c.Channels[len(c.Channels)-1])
+			}
+		}
 	}
 
 }

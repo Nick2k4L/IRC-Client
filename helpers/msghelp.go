@@ -9,10 +9,14 @@ import (
 	"github.com/go-irc/irc"
 )
 
-var commandMap map[string]string = map[string]string{
-	"JOIN": "Joined",
-	"PART": "Left",
-	"NICK": "Changed Nickname to",
+var commandMap = map[string]string{
+	"JOIN":   "Joined",
+	"PART":   "Left",
+	"NICK":   "Changed Nickname to",
+	"MODE":   "Sets Mode",
+	"NOTICE": "Notice",
+	"KICK":   "Kicked",
+	"Invite": "Invited",
 }
 
 var LastChannel string
@@ -27,8 +31,8 @@ type ChannelMessage struct {
 }
 
 type CommandMessage struct {
-	Timestamp                      time.Time
-	User, Reason, Channel, Command string
+	Timestamp                               time.Time
+	User, Reason, Channel, Command, Message string
 }
 
 type ErrorMessage struct {
@@ -69,8 +73,45 @@ type ServerMessage struct {
 	Message   string
 }
 
-// Direct Messages
+func ParseWhoIsMessage(msg *irc.Message) StructuredMessage {
+	if len(msg.Params) < 2 {
+		return &ServerMessage{
+			Timestamp: time.Now(),
+			Message:   "No message content",
+		}
+	}
 
+	usersName := msg.Params[1]
+	var messageText string
+
+	switch msg.Command {
+	case "311":
+		messageText = fmt.Sprintf("%s has userhost %s@%s and real name is `%s` ", usersName, usersName, msg.Params[3], msg.Params[5])
+	case "312":
+		messageText = fmt.Sprintf("%s is connected on %s (%s)", usersName, msg.Params[2], msg.Params[3])
+	case "319":
+		messageText = fmt.Sprintf("%s is in the following channels: %s", usersName, msg.Params[2:])
+	case "344":
+		messageText = fmt.Sprintf("%s %s", usersName, msg.Params[3])
+	case "317":
+		secondsIdle, _ := strconv.ParseInt(msg.Params[2], 10, 64)
+		unixTime, _ := strconv.ParseInt(msg.Params[3], 10, 64)
+		messageText = fmt.Sprintf("%s has been idle for %s and has been connected since %s",
+			usersName, time.Duration(secondsIdle)*time.Second, time.Unix(unixTime, 0).Format(time.RFC850))
+	case "671":
+		messageText = fmt.Sprintf("%s has SSL enabled", usersName)
+	default:
+		messageText = "Unhandled WHOIS response"
+	}
+
+	return &ServerMessage{
+		Timestamp: time.Now(),
+		Message:   messageText,
+	}
+
+}
+
+// Direct Messages
 func ParseDirectMessage(msg *irc.Message) StructuredMessage {
 	return &DirectMessage{
 		Timestamp: time.Now(),
@@ -87,7 +128,8 @@ func (dm *DirectMessage) Formatted() string {
 // Server Messages
 
 func ParseServerMessage(msg *irc.Message) StructuredMessage {
-	if len(msg.Params) == 0 {
+
+	if len(msg.Params) < 2 {
 		return &ServerMessage{
 			Timestamp: time.Now(),
 			Message:   "No message content",
@@ -224,6 +266,17 @@ func (cm *ChannelMessage) Formatted() string {
 // COMMANDS
 
 func ParseCommandMessages(msg *irc.Message) StructuredMessage {
+
+	if len(msg.Params) > 1 {
+		return &CommandMessage{
+			Timestamp: time.Now(),
+			User:      msg.Prefix.Name,
+			Command:   msg.Command,
+			Channel:   msg.Params[0],
+			Message:   msg.Params[1],
+		}
+	}
+
 	return &CommandMessage{
 		Timestamp: time.Now(),
 		User:      msg.Prefix.Name,
@@ -233,6 +286,12 @@ func ParseCommandMessages(msg *irc.Message) StructuredMessage {
 }
 
 func (cm *CommandMessage) Formatted() string {
+
+	if cm.User != "" && cm.Message != "" {
+		return fmt.Sprintf("[%s] ✧ %s %s %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command], cm.Message)
+
+	}
+
 	if cm.User != "" {
 		return fmt.Sprintf("[%s] ✧ %s %s %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command], cm.Channel)
 	}
