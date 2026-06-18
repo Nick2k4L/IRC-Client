@@ -238,6 +238,27 @@ func (c *IRCClient) ParseUserInput(input string) {
 		if len(c.Channels) > 0 {
 			fmt.Fprintf(c.Connection, "NAMES %s\r\n", c.Channels[len(c.Channels)-1])
 		}
+
+	case "/WHOIS":
+		if len(parts) > 1 {
+			fmt.Fprintf(c.Connection, "WHOIS %s\r\n", strings.TrimSpace(parts[1]))
+		}
+	case "/QUIT":
+		if len(parts) > 1 {
+			fmt.Fprintf(c.Connection, "QUIT :%s\r\n", strings.Join(parts[1:], " "))
+		}
+	case "/AWAY":
+		if len(parts) > 1 {
+			fmt.Fprintf(c.Connection, "AWAY :%s\r\n", strings.Join(parts[1:], " "))
+		}
+	case "/TOPIC":
+		if len(parts) > 2 {
+			fmt.Fprintf(c.Connection, "TOPIC %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[2])
+		} else if len(parts) == 1 {
+			// TOPIC OF CURRENT CHANNEL
+			fmt.Fprintf(c.Connection, "TOPIC %s\r\n", c.Channels[len(c.Channels)-1])
+		}
+
 	}
 
 }
