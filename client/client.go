@@ -106,7 +106,6 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 		if c.HandleCommands(msg, line) {
 			continue
 		}
-		c.Incoming <- helpers.ParseChannelMessages(msg)
 
 		//c.Incoming <- helpers.ParseRawMessages(msg)
 	}

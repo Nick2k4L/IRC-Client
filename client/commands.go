@@ -125,34 +125,31 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 				}
 
 				// THINK ABOUT MAKING AN ACTION MESSAGE?
-				if len(msg.Params) > 1 {
-					text := msg.Params[1]
-					if strings.HasPrefix(text, "\x01ACTION ") {
-						// Strip the \x01ACTION and the trailing \x01
-						actionText := strings.TrimPrefix(text, "\x01ACTION ")
-						actionText = strings.TrimSuffix(actionText, "\x01")
+				if strings.HasPrefix(text, "\x01ACTION ") {
+					// Strip the \x01ACTION and the trailing \x01
+					actionText := strings.TrimPrefix(text, "\x01ACTION ")
+					actionText = strings.TrimSuffix(actionText, "\x01")
 
-						c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: fmt.Sprintf("✧ %s ✧", actionText), Channel: msg.Params[0]}
-						return true
-					}
+					c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: fmt.Sprintf("✧ %s ✧", actionText), Channel: msg.Params[0]}
+					return true
 				}
 
 				// else, it is most likely a normal message, but we need to handle DMS
-				if len(msg.Params) > 1 {
-					if strings.HasPrefix(msg.Params[0], "#") {
-						return false // this is most likely a channel message, let the channel message handler handle this
-					}
-
-					if strings.Contains(c.Nickname, msg.Prefix.Name) && strings.Contains(c.Nickname, msg.Params[0]) {
-						return true // do nothing here, it is a self DM - we already handle out messages
-					}
-
-					// if the message even contains my name within a PRIVMSG it is most likely a DM
-					if strings.Contains(c.Nickname, msg.Params[0]) {
-						c.Incoming <- helpers.ParseDirectMessage(msg)
-						return true
-					}
+				if strings.HasPrefix(msg.Params[0], "#") {
+					c.Incoming <- helpers.ParseChannelMessages(msg)
+					return true // this is most likely a channel message, let the channel message handler handle this
 				}
+
+				if strings.Contains(c.Nickname, msg.Prefix.Name) && strings.Contains(c.Nickname, msg.Params[0]) {
+					return true // do nothing here, it is a self DM - we already handle out messages
+				}
+
+				// if the message even contains my name within a PRIVMSG it is most likely a DM
+				if strings.Contains(c.Nickname, msg.Params[0]) {
+					c.Incoming <- helpers.ParseDirectMessage(msg)
+					return true
+				}
+
 			}
 		}
 
@@ -165,6 +162,9 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 		}
 	case "NICK":
 		{
+			if msg.Prefix.Name == c.Nickname {
+				c.Nickname = msg.Params[0]
+			}
 			c.Incoming <- helpers.ParseCommandMessages(msg)
 			return true
 		}
@@ -267,7 +267,7 @@ func (c *IRCClient) ParseUserInput(input string) {
 				fmt.Fprintf(c.Connection, "NICK %s\r\n", strings.TrimSpace(parts[1]))
 
 				// TODO: Wait until we get a proper ACK from the server
-				c.Nickname = parts[1] // Update the nickname in the client state?
+				// c.Nickname = parts[1] // Update the nickname in the client state?
 			}
 		}
 

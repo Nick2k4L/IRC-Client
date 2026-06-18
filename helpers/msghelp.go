@@ -254,7 +254,7 @@ func ParseChannelMessages(msg *irc.Message) StructuredMessage {
 	return &ChannelMessage{
 		Timestamp: time.Now(),
 		User:      msg.Prefix.Name,
-		Message:   msg.String(),
+		Message:   " <---- Could Not Properly Parse Message ----> ",
 		Channel:   msg.Params[0],
 	}
 }
