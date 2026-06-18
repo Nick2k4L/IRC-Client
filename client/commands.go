@@ -132,26 +132,43 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 			// Add a CTCP action here.
 		}
 	case "JOIN", "PART":
-		{
-			c.Incoming <- helpers.ParseCommandMessages(msg)
-			return true
-		}
-		// change this most likely -- announcement that someone has changed their nickname
+
+		c.Incoming <- helpers.ParseCommandMessages(msg)
+		return true
+
 	case "NICK":
-		{
-			c.Incoming <- helpers.ParseCommandMessages(msg)
-			return true
-		}
+
+		c.Incoming <- helpers.ParseCommandMessages(msg)
+		return true
+
 	case "MODE":
-		{
-			c.Incoming <- helpers.ParseCommandMessages(msg)
-			return true
-		}
+
+		c.Incoming <- helpers.ParseCommandMessages(msg)
+		return true
+
 	case "NOTICE":
-		{
-			c.Incoming <- helpers.ParseCommandMessages(msg)
-			return true
-		}
+
+		c.Incoming <- helpers.ParseCommandMessages(msg)
+		return true
+
+		// channel, user who got kicked, admin who kicked, and a reason
+	case "KICK":
+
+		c.Incoming <- helpers.ParseCommandMessages(msg)
+		return true
+
+		// need to handle invites from a user...
+		// might need to be its own type of message since we do have `extra logic` attached to it.
+	case "INVITE":
+
+		c.Incoming <- helpers.ParseCommandMessages(msg)
+		return true
+
+	case "ERROR":
+
+		c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Connection error. Please check your connection and try again."}
+		return true
+
 	case "QUIT":
 		{
 			// display of quit is not really necessary.
