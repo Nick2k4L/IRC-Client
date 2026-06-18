@@ -12,7 +12,7 @@ import (
 var commandMap map[string]string = map[string]string{
 	"JOIN": "Joined",
 	"PART": "Left",
-	"NICK": "Changed Nickname",
+	"NICK": "Changed Nickname to",
 }
 
 var LastChannel string
@@ -37,8 +37,8 @@ type ErrorMessage struct {
 }
 
 type DirectMessage struct {
-	Timestamp     time.Time
-	User, Message string
+	Timestamp                 time.Time
+	Sender, Receiver, Message string
 }
 
 type RawMessage struct {
@@ -69,6 +69,21 @@ type ServerMessage struct {
 	Message   string
 }
 
+// Direct Messages
+
+func ParseDirectMessage(msg *irc.Message) StructuredMessage {
+	return &DirectMessage{
+		Timestamp: time.Now(),
+		Sender:    msg.Prefix.Name,
+		Receiver:  msg.Params[0],
+		Message:   msg.Params[1],
+	}
+}
+
+func (dm *DirectMessage) Formatted() string {
+	return fmt.Sprintf("[%s] DM from %s to %s: %s", dm.Timestamp.Format("15:04"), dm.Sender, dm.Receiver, dm.Message)
+}
+
 // Server Messages
 
 func ParseServerMessage(msg *irc.Message) StructuredMessage {
@@ -87,6 +102,7 @@ func ParseServerMessage(msg *irc.Message) StructuredMessage {
 
 }
 
+// "✧"
 func (sm *ServerMessage) Formatted() string {
 	return fmt.Sprintf("[%s] SERVER: %s", sm.Timestamp.Format("15:04"), sm.Message)
 }
@@ -202,7 +218,7 @@ func ParseChannelMessages(msg *irc.Message) StructuredMessage {
 }
 
 func (cm *ChannelMessage) Formatted() string {
-	return fmt.Sprintf("[%s] {%s} <%s> : %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.User, cm.Message)
+	return fmt.Sprintf("[%s] {%s} <%s> %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.User, cm.Message)
 }
 
 // COMMANDS
@@ -218,7 +234,7 @@ func ParseCommandMessages(msg *irc.Message) StructuredMessage {
 
 func (cm *CommandMessage) Formatted() string {
 	if cm.User != "" {
-		return fmt.Sprintf("[%s] # %s %s %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command], cm.Channel)
+		return fmt.Sprintf("[%s] ✧ %s %s %s", cm.Timestamp.Format("15:04"), cm.User, commandMap[cm.Command], cm.Channel)
 	}
 
 	return fmt.Sprintf("[%s] : {%s} %s", cm.Timestamp.Format("15:04"), cm.Channel, cm.Command)
