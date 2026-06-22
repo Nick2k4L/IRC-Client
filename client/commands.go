@@ -85,10 +85,15 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 			// TODO: Can add logic here to connect to multiple channels.
 			return true
 		}
-	case "433":
+	case "401", "403", "404", "433", "473", "474", "482": // we will make these the error cases....
 		{
 			// Generate a message to the user saying, use /nick to change nick name
-			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Nickname already in use. Use /nick to change nick name."}
+			if len(msg.Params) > 1 {
+				c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: strings.Join(msg.Params[1:], " ")}
+			} else {
+				c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Unknown"}
+			}
+
 			return true
 		}
 
@@ -191,7 +196,7 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 		}
 	case "ERROR":
 		{
-			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Connection error. Please check your connection and try again."}
+			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: msg.Params[0]}
 			return true
 		}
 	case "QUIT":
