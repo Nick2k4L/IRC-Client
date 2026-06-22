@@ -124,51 +124,9 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 			pong(line, c.Connection)
 			return true
 		}
-	// TODO: clean this up!
 	case "PRIVMSG":
 		{
-			if len(msg.Params) > 1 {
-				text := msg.Params[1]
-				if strings.HasPrefix(text, "\x01VERSION") {
-					target := msg.Name
-					if target == "" && msg.Prefix != nil {
-						target = msg.Prefix.Name
-					}
-
-					if target != "" {
-						// Respond with a NOTICE wrapped in \x01
-						fmt.Fprintf(c.Connection, "NOTICE %s :\x01VERSION CustomGoClient:1.0\x01\r\n", target)
-					}
-					return true
-				}
-
-				// THINK ABOUT MAKING AN ACTION MESSAGE?
-				if strings.HasPrefix(text, "\x01ACTION ") {
-					// Strip the \x01ACTION and the trailing \x01
-					actionText := strings.TrimPrefix(text, "\x01ACTION ")
-					actionText = strings.TrimSuffix(actionText, "\x01")
-
-					c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: msg.Prefix.Name, Message: fmt.Sprintf("✧ %s ✧", actionText), Channel: msg.Params[0]}
-					return true
-				}
-
-				// else, it is most likely a normal message, but we need to handle DMS
-				if strings.HasPrefix(msg.Params[0], "#") {
-					c.Incoming <- helpers.ParseChannelMessages(msg)
-					return true // this is most likely a channel message, let the channel message handler handle this
-				}
-
-				if strings.Contains(c.Nickname, msg.Prefix.Name) && strings.Contains(c.Nickname, msg.Params[0]) {
-					return true // do nothing here, it is a self DM - we already handle out messages
-				}
-
-				// if the message even contains my name within a PRIVMSG it is most likely a DM
-				if strings.Contains(c.Nickname, msg.Params[0]) {
-					c.Incoming <- helpers.ParseDirectMessage(msg)
-					return true
-				}
-
-			}
+			return c.handlePrivMsg(msg)
 		}
 
 	case "JOIN", "PART":
@@ -377,4 +335,60 @@ func (c *IRCClient) ParseUserInput(input string) {
 
 	}
 
+}
+
+func (c *IRCClient) handlePrivMsg(msg *irc.Message) bool {
+	if len(msg.Params) < 2 || msg.Prefix == nil {
+		return false
+	}
+
+	target := msg.Params[0]
+	text := msg.Params[1]
+	sender := msg.Prefix.Name
+
+	if strings.HasPrefix(text, "\x01") {
+		return c.handleCTCP(sender, target, text)
+	}
+
+	// Standard IRC channels start with #, but some networks use & for local channels
+	if strings.HasPrefix(target, "#") || strings.HasPrefix(target, "&") {
+		c.Incoming <- helpers.ParseChannelMessages(msg)
+		return true
+	}
+
+	if target == c.Nickname {
+		// Ignore self-DMs (we already rendered our outbound message in the UI)
+		if sender == c.Nickname {
+			return true
+		}
+
+		c.Incoming <- helpers.ParseDirectMessage(msg)
+		return true
+	}
+
+	return false
+}
+
+func (c *IRCClient) handleCTCP(sender, target, text string) bool {
+	if strings.HasPrefix(text, "\x01VERSION") {
+		// Respond with a NOTICE wrapped in \x01
+		fmt.Fprintf(c.Connection, "NOTICE %s :\x01VERSION CustomGoClient:1.0\x01\r\n", sender)
+		return true
+	}
+
+	// action messages start with \x01ACTION
+	if strings.HasPrefix(text, "\x01ACTION ") {
+		actionText := strings.TrimPrefix(text, "\x01ACTION ")
+		actionText = strings.TrimSuffix(actionText, "\x01")
+
+		c.Incoming <- &helpers.ChannelMessage{
+			Timestamp: time.Now(),
+			User:      sender,
+			Message:   fmt.Sprintf("✧ %s ✧", actionText),
+			Channel:   target,
+		}
+		return true
+	}
+
+	return false
 }
