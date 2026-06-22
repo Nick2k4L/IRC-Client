@@ -18,19 +18,21 @@ type ErrMsg error
 
 // TODO: add a current channel type, and remove all c.Channels[len(c.Channels)-1]...
 type IRCClient struct {
-	Host        string
-	Nickname    string
-	Port        int
-	Connection  net.Conn
-	Channels    []string // Keep some memory of every channel we have `joined`
-	DirectMsgs  []string // Keep some memory of every channel we have `dmed`
-	LastCommand string   // Keep track of the last command we sent to the server, so we can handle responses to it better
-	Incoming    chan helpers.StructuredMessage
-	TLS         bool
-	Quit        chan struct{}
+	Host           string
+	Nickname       string
+	Port           int
+	Connection     net.Conn
+	Channels       []string // Keep some memory of every channel we have `joined`
+	DirectMsgs     []string // Keep some memory of every channel we have `dmed`
+	LastCommand    string   // Keep track of the last command we sent to the server, so we can handle responses to it better
+	CurrentChannel string
+	Incoming       chan helpers.StructuredMessage
+	TLS            bool
+	IsDev          bool
+	Quit           chan struct{}
 }
 
-func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
+func NewIRCClient(host, nickname string, port int, isDev, tls bool) *IRCClient {
 	return &IRCClient{
 		Host:     host,
 		Nickname: nickname,
@@ -38,6 +40,7 @@ func NewIRCClient(host, nickname string, port int, tls bool) *IRCClient {
 		TLS:      tls,
 		Incoming: make(chan helpers.StructuredMessage, 512),
 		Quit:     make(chan struct{}),
+		IsDev:    isDev,
 	}
 }
 
@@ -83,7 +86,7 @@ func (c *IRCClient) Disconnect() {
 }
 
 func (c *IRCClient) Send(msg string) {
-	c.ParseUserInput(msg)
+	c.ParseUserInput("", msg)
 }
 
 func (c *IRCClient) readLoop(conn net.Conn) {
@@ -115,4 +118,9 @@ func (c *IRCClient) readLoop(conn net.Conn) {
 		fmt.Println("Error reading from connection:", err)
 	}
 	close(c.Incoming)
+}
+
+// SetCurrentChannel sets the current channel for the IRC client. Most likely set this via POST
+func (c *IRCClient) SetCurrentChannel(channel string) {
+	c.CurrentChannel = channel
 }

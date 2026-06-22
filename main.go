@@ -157,7 +157,7 @@ func (m model) View() string {
 
 func main() {
 	// Initialize your client using your custom package
-	ircClient := client.NewIRCClient("irc.hybridirc.com", "ShinbouFave23", 6697, true)
+	ircClient := client.NewIRCClient("irc.hybridirc.com", "ShinbouFave23", 6697, true, true)
 	ircClient.Connect()
 
 	// Pass the client into the Bubble Tea model

@@ -182,21 +182,30 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 
 // USER INPUT / COMMANDS
 
-func (c *IRCClient) ParseUserInput(input string) {
+func (c *IRCClient) ParseUserInput(target, input string) {
 
-	if !strings.HasPrefix(input, "/") {
+	if len(c.Channels) != 0 && c.IsDev {
+		c.SetCurrentChannel(c.Channels[len(c.Channels)-1])
+
+	}
+
+	if !strings.HasPrefix(input, "/") && c.IsDev {
 		if len(c.Channels) == 0 {
 			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "You need to join at least one channel. Use /join <channel> to join a channel"}
 			return
 		}
 
-		// TODO: This will eventually need to be changed to allow the user to specify which channel
-		//  they want to send the message to, but for now we will just send it to the most recently joined channel.
-		//	 possible solution: add a channel selector to the UI and use index of the selected channel
-		//	 to determine which channel to send the message to.
+		fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", c.CurrentChannel, input)
+	}
 
-		currentChannel := c.Channels[len(c.Channels)-1] // Send to the most recently joined channel
-		fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", currentChannel, input)
+	// send a message to the target channel
+	if !strings.HasPrefix(input, "/") {
+		fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", target, input)
+
+		// if the target is someone to DM
+		if !strings.HasPrefix(target, "#") && !strings.HasPrefix(target, "&") {
+			c.sendDMMessage(target, input)
+		}
 	}
 
 	parts := strings.SplitN(input, " ", 3)
@@ -207,7 +216,7 @@ func (c *IRCClient) ParseUserInput(input string) {
 	case "/JOIN":
 		{
 			if len(parts) > 1 {
-				c.Channels = append(c.Channels, parts[1])
+				c.Channels = append(c.Channels, parts[1]) // TODO: Remove this
 				fmt.Fprintf(c.Connection, "JOIN %s\r\n", strings.TrimSpace(parts[1]))
 			}
 		}
@@ -215,15 +224,8 @@ func (c *IRCClient) ParseUserInput(input string) {
 		{
 			if len(parts) > 2 {
 				fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
-				c.DirectMsgs = append(c.DirectMsgs, parts[2])
-
-				dmMsg := &helpers.DirectMessage{
-					Timestamp: time.Now(),
-					Sender:    c.Nickname,
-					Receiver:  parts[1],
-					Message:   parts[2],
-				}
-				c.Incoming <- dmMsg
+				c.DirectMsgs = append(c.DirectMsgs, parts[2]) // TODO: Remove this
+				c.sendDMMessage(parts[1], parts[2])
 			}
 		}
 
@@ -232,7 +234,15 @@ func (c *IRCClient) ParseUserInput(input string) {
 			// Logic for parting
 			if len(parts) > 1 {
 				fmt.Fprintf(c.Connection, "PART %s\r\n", strings.TrimSpace(parts[1]))
-				c.Channels = c.Channels[:len(c.Channels)-1]
+				//for i, channel := range c.Channels {
+				//	if channel == strings.TrimSpace(parts[1]) {
+				//		c.Channels = append(c.Channels[:i], c.Channels[i+1:]...)
+				//		break
+				//	}
+				//} // TODO: Frontend will need to update the channel list
+				// This would no user definition, just channel
+			} else {
+				fmt.Fprintf(c.Connection, "PART %s\r\n", strings.TrimSpace(target))
 			}
 		}
 	case "/NICK":
@@ -250,11 +260,12 @@ func (c *IRCClient) ParseUserInput(input string) {
 			if len(parts) > 1 {
 				action := strings.Join(parts[1:], " ")
 
-				fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", c.Channels[len(c.Channels)-1], action)
-				c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: c.Nickname, Message: fmt.Sprintf("✧ %s ✧", action), Channel: c.Channels[len(c.Channels)-1]}
+				// c.CurrentChannel
+				fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", target, action)
+				c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: c.Nickname, Message: fmt.Sprintf("✧ %s ✧", action), Channel: target}
 			}
 		}
-
+		// frontend will display the channels that the user is in
 	case "/CHANNELS":
 		{
 			//chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
@@ -264,8 +275,9 @@ func (c *IRCClient) ParseUserInput(input string) {
 
 	case "/NAMES":
 		{
+			// names in current channel
 			if len(c.Channels) > 0 {
-				fmt.Fprintf(c.Connection, "NAMES %s\r\n", c.Channels[len(c.Channels)-1])
+				fmt.Fprintf(c.Connection, "NAMES %s\r\n", target)
 			}
 		}
 
@@ -293,10 +305,11 @@ func (c *IRCClient) ParseUserInput(input string) {
 	case "/TOPIC":
 		{
 			if len(parts) > 2 {
-				fmt.Fprintf(c.Connection, "TOPIC %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[2])
+				// setting a topic for a channel
+				fmt.Fprintf(c.Connection, "TOPIC %s :%s\r\n", parts[1], parts[2])
 			} else {
 				// TOPIC OF CURRENT CHANNEL
-				fmt.Fprintf(c.Connection, "TOPIC %s\r\n", c.Channels[len(c.Channels)-1])
+				fmt.Fprintf(c.Connection, "TOPIC %s\r\n", target)
 			}
 		}
 
@@ -309,16 +322,16 @@ func (c *IRCClient) ParseUserInput(input string) {
 	case "/KICK":
 		{
 			if len(parts) > 2 {
-				// specified channel, user to kick, reason
-				fmt.Fprintf(c.Connection, "KICK %s %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[1], parts[2])
+				// current channel, user to kick, reason
+				fmt.Fprintf(c.Connection, "KICK %s %s :%s\r\n", target, parts[1], parts[2])
 			}
 		}
 
 	case "/MODE":
 		{
 			if len(parts) > 2 {
-				// specified channel, mode, and parameters
-				fmt.Fprintf(c.Connection, "MODE %s %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[1], parts[2])
+				// current channel, mode, and parameters
+				fmt.Fprintf(c.Connection, "MODE %s %s :%s\r\n", target, parts[1], parts[2])
 			}
 		}
 		// if we dont support a command, let the user send over a RAW command to do a specified action....
@@ -362,6 +375,8 @@ func (c *IRCClient) handlePrivMsg(msg *irc.Message) bool {
 			return true
 		}
 
+		c.DirectMsgs = append(c.DirectMsgs, sender) // append the sender to the list of direct messages
+
 		c.Incoming <- helpers.ParseDirectMessage(msg)
 		return true
 	}
@@ -391,4 +406,18 @@ func (c *IRCClient) handleCTCP(sender, target, text string) bool {
 	}
 
 	return false
+}
+
+// sendDMMessage is a helper function to send a direct message to a user.
+// It checks if the target is not a channel and then sends the message to the Incoming channel for display.
+func (c *IRCClient) sendDMMessage(target, message string) {
+	if !strings.HasPrefix(target, "#") && !strings.HasPrefix(target, "&") {
+		dmMsg := &helpers.DirectMessage{
+			Timestamp: time.Now(),
+			Sender:    c.Nickname,
+			Receiver:  target,
+			Message:   message,
+		}
+		c.Incoming <- dmMsg
+	}
 }
