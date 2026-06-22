@@ -16,7 +16,7 @@ var commandMap = map[string]string{
 	"MODE":   "Sets Mode",
 	"NOTICE": "Notice",
 	"KICK":   "Kicked",
-	"Invite": "Invited",
+	"INVITE": "Invited You to",
 }
 
 var LastChannel string

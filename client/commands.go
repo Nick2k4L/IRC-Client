@@ -22,7 +22,9 @@ var UserList = helpers.UserListMessage{
 // NUMERIC SERVER COMMANDS
 
 func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
-
+	// NOTE: For right now we are just going to handle the numeric commands that we care about, and ignore the rest.
+	// Also, we are separating the numeric commands, even if they do the same thing, just incase we want to make custom messages
+	// for each one in the future.
 	switch msg.Command {
 	case "001", "002", "003", "004", "005":
 		{
@@ -33,6 +35,17 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 		{
 			// We don't really care about these raw stats for the UI right now.
 			// Return true so they don't get passed to the RawMessage fallback.
+			return true
+		}
+	case "301":
+		{
+			// can handle something in the future....
+			c.Incoming <- helpers.ParseServerMessage(msg)
+			return true
+		}
+	case "324":
+		{
+			c.Incoming <- helpers.ParseServerMessage(msg)
 			return true
 		}
 	case "311", "312", "317", "319", "344", "671":
