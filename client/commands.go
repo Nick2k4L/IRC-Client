@@ -199,7 +199,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 	}
 
 	// send a message to the target channel
-	if !strings.HasPrefix(input, "/") {
+	if !strings.HasPrefix(input, "/") && !c.IsDev {
 		fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", target, input)
 
 		// if the target is someone to DM
