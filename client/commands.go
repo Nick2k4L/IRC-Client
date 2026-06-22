@@ -153,8 +153,6 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 			}
 		}
 
-		// Add a CTCP action here.
-
 	case "JOIN", "PART":
 		{
 			c.Incoming <- helpers.ParseCommandMessages(msg)
@@ -325,6 +323,26 @@ func (c *IRCClient) ParseUserInput(input string) {
 				fmt.Fprintf(c.Connection, "TOPIC %s\r\n", c.Channels[len(c.Channels)-1])
 			}
 		}
+
+	case "/INVITE":
+		{
+			if len(parts) > 2 {
+				fmt.Fprintf(c.Connection, "INVITE %s %s\r\n", parts[1], parts[2])
+			}
+		}
+
+		// if we dont support a command, let the user send over a RAW command to do a specified action....
+	case "/RAW", "/QUOTE":
+		{
+			rawCommand := strings.Join(parts[1:], " ")
+			fmt.Fprintf(c.Connection, "%s\r\n", rawCommand)
+
+			c.Incoming <- &helpers.ServerMessage{
+				Timestamp: time.Now(),
+				Message:   fmt.Sprintf("[RAW CMD] -> %s", rawCommand),
+			}
+		}
+
 	}
 
 }
