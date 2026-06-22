@@ -330,7 +330,21 @@ func (c *IRCClient) ParseUserInput(input string) {
 				fmt.Fprintf(c.Connection, "INVITE %s %s\r\n", parts[1], parts[2])
 			}
 		}
+	case "/KICK":
+		{
+			if len(parts) > 2 {
+				// specified channel, user to kick, reason
+				fmt.Fprintf(c.Connection, "KICK %s %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[1], parts[2])
+			}
+		}
 
+	case "/MODE":
+		{
+			if len(parts) > 2 {
+				// specified channel, mode, and parameters
+				fmt.Fprintf(c.Connection, "MODE %s %s :%s\r\n", c.Channels[len(c.Channels)-1], parts[1], parts[2])
+			}
+		}
 		// if we dont support a command, let the user send over a RAW command to do a specified action....
 	case "/RAW", "/QUOTE":
 		{
