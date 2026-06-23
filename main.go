@@ -72,7 +72,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter":
 			text := strings.TrimSpace(string(m.input))
 			if text != "" {
-				m.client.Send(text)
+				m.client.Send("", text)
 				m.messages = append(m.messages, "["+time.Now().Format("15:04")+"] <✧"+m.client.Nickname+"✧> "+text)
 
 				// Update viewport immediately when you send a message

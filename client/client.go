@@ -86,8 +86,8 @@ func (c *IRCClient) Disconnect() {
 	}
 }
 
-func (c *IRCClient) Send(msg string) {
-	c.ParseUserInput("", msg)
+func (c *IRCClient) Send(target, msg string) {
+	c.ParseUserInput(target, msg)
 }
 
 func (c *IRCClient) readLoop(conn net.Conn) {
