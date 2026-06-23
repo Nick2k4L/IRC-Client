@@ -94,7 +94,7 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 		}
 	case "376":
 		{
-			c.Incoming <- &helpers.ServerMessage{Timestamp: time.Now(), Message: "<--- Connection Established --->"}
+			c.Incoming <- &helpers.ServerMessage{Type: "SERVER", Timestamp: time.Now(), Message: "<--- Connection Established --->"}
 
 			// join some pre-marked channels
 			for _, channel := range c.PreJoinChannels {
@@ -107,9 +107,9 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 		{
 			// Generate a message to the user saying, use /nick to change nick name
 			if len(msg.Params) > 1 {
-				c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: strings.Join(msg.Params[1:], " ")}
+				c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: strings.Join(msg.Params[1:], " ")}
 			} else {
-				c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "Unknown"}
+				c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: "Unknown"}
 			}
 
 			return true
@@ -172,7 +172,7 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 		}
 	case "ERROR":
 		{
-			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: msg.Params[0]}
+			c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: msg.Params[0]}
 			return true
 		}
 	case "QUIT":
@@ -196,7 +196,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 
 	if !strings.HasPrefix(input, "/") && c.IsDev {
 		if len(c.Channels) == 0 {
-			c.Incoming <- &helpers.ErrorMessage{Timestamp: time.Now(), Message: "You need to join at least one channel. Use /join <channel> to join a channel"}
+			c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: "You need to join at least one channel. Use /join <channel> to join a channel"}
 			return
 		}
 
@@ -266,7 +266,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 
 				// c.CurrentChannel
 				fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", target, action)
-				c.Incoming <- &helpers.ChannelMessage{Timestamp: time.Now(), User: c.Nickname, Message: fmt.Sprintf("✧ %s ✧", action), Channel: target}
+				c.Incoming <- &helpers.ChannelMessage{Type: "Channel", Timestamp: time.Now(), User: c.Nickname, Message: fmt.Sprintf("✧ %s ✧", action), Channel: target}
 			}
 		}
 		// frontend will display the channels that the user is in
@@ -274,7 +274,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 		{
 			//chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
 			//msg := helpers.ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
-			c.Incoming <- &helpers.ServerMessage{Timestamp: time.Now(), Message: fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))}
+			c.Incoming <- &helpers.ServerMessage{Type: "Server", Timestamp: time.Now(), Message: fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))}
 		}
 
 	case "/NAMES":
@@ -345,6 +345,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 			fmt.Fprintf(c.Connection, "%s\r\n", rawCommand)
 
 			c.Incoming <- &helpers.ServerMessage{
+				Type:      "Server",
 				Timestamp: time.Now(),
 				Message:   fmt.Sprintf("[RAW CMD] -> %s", rawCommand),
 			}
@@ -401,6 +402,7 @@ func (c *IRCClient) handleCTCP(sender, target, text string) bool {
 		actionText = strings.TrimSuffix(actionText, "\x01")
 
 		c.Incoming <- &helpers.ChannelMessage{
+			Type:      "Channel",
 			Timestamp: time.Now(),
 			User:      sender,
 			Message:   fmt.Sprintf("✧ %s ✧", actionText),
@@ -417,6 +419,7 @@ func (c *IRCClient) handleCTCP(sender, target, text string) bool {
 func (c *IRCClient) sendMessage(target, message string) {
 	if !strings.HasPrefix(target, "#") && !strings.HasPrefix(target, "&") {
 		dmMsg := &helpers.DirectMessage{
+			Type:      "DirectMessage",
 			Timestamp: time.Now(),
 			Sender:    c.Nickname,
 			Receiver:  target,
@@ -425,6 +428,7 @@ func (c *IRCClient) sendMessage(target, message string) {
 		c.Incoming <- dmMsg
 	} else {
 		userMsg := &helpers.UserMessage{
+			Type:      "UserMessage",
 			Timestamp: time.Now(),
 			User:      c.Nickname,
 			Message:   message,
