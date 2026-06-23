@@ -18,18 +18,19 @@ type ErrMsg error
 
 // TODO: add a current channel type, and remove all c.Channels[len(c.Channels)-1]...
 type IRCClient struct {
-	Host           string
-	Nickname       string
-	Port           int
-	Connection     net.Conn
-	Channels       []string // Keep some memory of every channel we have `joined`
-	DirectMsgs     []string // Keep some memory of every channel we have `dmed`
-	LastCommand    string   // Keep track of the last command we sent to the server, so we can handle responses to it better
-	CurrentChannel string
-	Incoming       chan helpers.StructuredMessage
-	TLS            bool
-	IsDev          bool
-	Quit           chan struct{}
+	Host            string
+	Nickname        string
+	Port            int
+	Connection      net.Conn
+	Channels        []string // Keep some memory of every channel we have `joined`
+	DirectMsgs      []string // Keep some memory of every channel we have `dmed`
+	LastCommand     string   // Keep track of the last command we sent to the server, so we can handle responses to it better
+	CurrentChannel  string
+	Incoming        chan helpers.StructuredMessage
+	TLS             bool
+	IsDev           bool
+	PreJoinChannels []string
+	Quit            chan struct{}
 }
 
 func NewIRCClient(host, nickname string, port int, isDev, tls bool) *IRCClient {

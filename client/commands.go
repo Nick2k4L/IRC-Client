@@ -95,7 +95,12 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 	case "376":
 		{
 			c.Incoming <- &helpers.ServerMessage{Timestamp: time.Now(), Message: "<--- Connection Established --->"}
-			// TODO: Can add logic here to connect to multiple channels.
+
+			// join some pre-marked channels
+			for _, channel := range c.PreJoinChannels {
+				fmt.Fprintf(c.Connection, "JOIN %s\r\n", channel)
+			}
+
 			return true
 		}
 	case "401", "403", "404", "433", "473", "474", "482": // we will make these the error cases....
