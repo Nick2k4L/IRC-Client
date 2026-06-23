@@ -207,8 +207,9 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 	if !strings.HasPrefix(input, "/") && !c.IsDev {
 		fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", target, input)
 
-		// if the target is someone to DM
-		c.sendMessage(target, input)
+		c.sendMessage(target, input) // just for display purposes
+
+		return
 	}
 
 	parts := strings.SplitN(input, " ", 3)
