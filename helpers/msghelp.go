@@ -26,57 +26,75 @@ type StructuredMessage interface {
 }
 
 type ChannelMessage struct {
-	Timestamp              time.Time
-	User, Message, Channel string
+	Timestamp time.Time
+	Type      string `json:"type"`
+	User      string `json:"user"`
+	Message   string `json:"message"`
+	Channel   string `json:"channel"`
 }
 
 type CommandMessage struct {
-	Timestamp                               time.Time
-	User, Reason, Channel, Command, Message string
+	Timestamp time.Time `json:"timestamp"`
+	Type      string    `json:"type"`
+	User      string    `json:"user"`
+	Reason    string    `json:"reason"`
+	Channel   string    `json:"channel"`
+	Command   string    `json:"command"`
+	Message   string    `json:"message"`
 }
 
 type ErrorMessage struct {
-	Timestamp time.Time
-	Message   string
+	Timestamp time.Time `json:"timestamp"`
+	Type      string    `json:"type"`
+	Message   string    `json:"message"`
 }
 
 type DirectMessage struct {
-	Timestamp                 time.Time
-	Sender, Receiver, Message string
+	Timestamp time.Time `json:"timestamp"`
+	Type      string    `json:"type"`
+	Sender    string    `json:"sender"`
+	Receiver  string    `json:"receiver"`
+	Message   string    `json:"message"`
 }
 
 type RawMessage struct {
-	Timestamp time.Time
-	Message   string
+	Timestamp time.Time `json:"timestamp"`
+	Message   string    `json:"message"`
 }
 
 type TopicMessage struct {
-	Timestamp      time.Time
-	Channel, Topic string
+	Type      string    `json:"type"`
+	Timestamp time.Time `json:"timestamp"`
+	Channel   string    `json:"channel"`
+	Topic     string    `json:"topic"`
 }
 
 type TopicMetadataMessage struct {
-	Timestamp time.Time
-	Channel   string
-	User      string
-	Time      time.Time
+	Timestamp time.Time `json:"timestamp"`
+	Time      time.Time `json:"time"`
+	Type      string    `json:"type"`
+	Channel   string    `json:"channel"`
+	User      string    `json:"user"`
 }
 
 type UserListMessage struct {
 	// maps to channel and list of users....
-	UserList map[string][]string
-	Channel  string
+	UserList map[string][]string `json:"userlist"`
+	Channel  string              `json:"channel"`
+	Type     string              `json:"type"`
 }
 
 type ServerMessage struct {
-	Timestamp time.Time
-	Message   string
+	Type      string    `json:"type"`
+	Timestamp time.Time `json:"timestamp"`
+	Message   string    `json:"message"`
 }
 
 type UserMessage struct {
-	Timestamp time.Time
-	User      string
-	Message   string
+	Type      string    `json:"type"`
+	Timestamp time.Time `json:"timestamp"`
+	User      string    `json:"user"`
+	Message   string    `json:"message"`
 }
 
 // user message
@@ -127,6 +145,7 @@ func ParseWhoIsMessage(msg *irc.Message) StructuredMessage {
 // Direct Messages
 func ParseDirectMessage(msg *irc.Message) StructuredMessage {
 	return &DirectMessage{
+		Type:      "DirectMessage",
 		Timestamp: time.Now(),
 		Sender:    msg.Prefix.Name,
 		Receiver:  msg.Params[0],
@@ -144,6 +163,7 @@ func ParseServerMessage(msg *irc.Message) StructuredMessage {
 
 	if len(msg.Params) < 2 {
 		return &ServerMessage{
+			Type:      "SERVER",
 			Timestamp: time.Now(),
 			Message:   "No message content",
 		}
@@ -151,6 +171,7 @@ func ParseServerMessage(msg *irc.Message) StructuredMessage {
 
 	fullMessage := strings.Join(msg.Params[1:], " ")
 	return &ServerMessage{
+		Type:      "SERVER",
 		Timestamp: time.Now(),
 		Message:   fullMessage,
 	}
@@ -189,6 +210,7 @@ func DeepCopyUserListMessage(ul UserListMessage) StructuredMessage {
 	}
 
 	return &UserListMessage{
+		Type:     "User List",
 		UserList: newMap,
 		Channel:  LastChannel,
 	}
@@ -208,6 +230,7 @@ func ParseTopicMessage(msg *irc.Message) StructuredMessage {
 		unixTime, _ := strconv.ParseInt(msg.Params[3], 10, 64)
 
 		return &TopicMetadataMessage{
+			Type:      "Topic Metadata",
 			Timestamp: now,
 			Channel:   msg.Params[1],
 			User:      msg.Params[2],
@@ -216,6 +239,7 @@ func ParseTopicMessage(msg *irc.Message) StructuredMessage {
 	}
 
 	return &TopicMessage{
+		Type:      "Topic",
 		Timestamp: now,
 		Channel:   msg.Params[1],
 		Topic:     msg.Params[2],
@@ -257,6 +281,7 @@ func ParseChannelMessages(msg *irc.Message) StructuredMessage {
 
 	if len(msg.Params) >= 2 {
 		return &ChannelMessage{
+			Type:      "Channel",
 			Timestamp: time.Now(),
 			User:      msg.Prefix.Name,
 			Message:   msg.Params[1],
@@ -265,6 +290,7 @@ func ParseChannelMessages(msg *irc.Message) StructuredMessage {
 	}
 
 	return &ChannelMessage{
+		Type:      "Channel",
 		Timestamp: time.Now(),
 		User:      msg.Prefix.Name,
 		Message:   " <---- Could Not Properly Parse Message ----> ",
@@ -283,6 +309,7 @@ func ParseCommandMessages(msg *irc.Message) StructuredMessage {
 	if len(msg.Params) > 1 {
 		return &CommandMessage{
 			Timestamp: time.Now(),
+			Type:      "Command",
 			User:      msg.Prefix.Name,
 			Command:   msg.Command,
 			Channel:   msg.Params[0],
@@ -292,6 +319,7 @@ func ParseCommandMessages(msg *irc.Message) StructuredMessage {
 
 	return &CommandMessage{
 		Timestamp: time.Now(),
+		Type:      "Command",
 		User:      msg.Prefix.Name,
 		Command:   msg.Command,
 		Channel:   msg.Params[0],
