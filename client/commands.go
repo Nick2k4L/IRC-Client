@@ -208,9 +208,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 		fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", target, input)
 
 		// if the target is someone to DM
-		if !strings.HasPrefix(target, "#") && !strings.HasPrefix(target, "&") {
-			c.sendDMMessage(target, input)
-		}
+		c.sendMessage(target, input)
 	}
 
 	parts := strings.SplitN(input, " ", 3)
@@ -230,7 +228,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 			if len(parts) > 2 {
 				fmt.Fprintf(c.Connection, "PRIVMSG %s :%s\r\n", parts[1], parts[2])
 				c.DirectMsgs = append(c.DirectMsgs, parts[2]) // TODO: Remove this
-				c.sendDMMessage(parts[1], parts[2])
+				c.sendMessage(parts[1], parts[2])
 			}
 		}
 
@@ -415,7 +413,7 @@ func (c *IRCClient) handleCTCP(sender, target, text string) bool {
 
 // sendDMMessage is a helper function to send a direct message to a user.
 // It checks if the target is not a channel and then sends the message to the Incoming channel for display.
-func (c *IRCClient) sendDMMessage(target, message string) {
+func (c *IRCClient) sendMessage(target, message string) {
 	if !strings.HasPrefix(target, "#") && !strings.HasPrefix(target, "&") {
 		dmMsg := &helpers.DirectMessage{
 			Timestamp: time.Now(),
@@ -424,5 +422,13 @@ func (c *IRCClient) sendDMMessage(target, message string) {
 			Message:   message,
 		}
 		c.Incoming <- dmMsg
+	} else {
+		userMsg := &helpers.UserMessage{
+			Timestamp: time.Now(),
+			User:      c.Nickname,
+			Message:   message,
+		}
+		c.Incoming <- userMsg
+
 	}
 }

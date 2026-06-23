@@ -73,6 +73,19 @@ type ServerMessage struct {
 	Message   string
 }
 
+type UserMessage struct {
+	Timestamp time.Time
+	User      string
+	Message   string
+}
+
+// user message
+
+func (um *UserMessage) Formatted() string {
+	// "["+time.Now().Format("15:04")+"] <✧"+m.client.Nickname+"✧> "+text
+	return fmt.Sprintf("[%s] <✧%s✧> %s", um.Timestamp.Format("15:04"), um.User, um.Message)
+}
+
 func ParseWhoIsMessage(msg *irc.Message) StructuredMessage {
 	if len(msg.Params) < 2 {
 		return &ServerMessage{
