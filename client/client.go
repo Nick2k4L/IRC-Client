@@ -55,6 +55,14 @@ func (c *IRCClient) ReadMessages() tea.Cmd {
 	}
 }
 
+func (c *IRCClient) ReadFormattedMessages() []byte {
+	msg, ok := <-c.Incoming
+	if !ok {
+		return []byte("connection closed")
+	}
+	return []byte(msg.Formatted())
+}
+
 func (c *IRCClient) Connect() {
 	var conn net.Conn
 	var err error
