@@ -95,6 +95,7 @@ type UserMessage struct {
 	Timestamp time.Time `json:"timestamp"`
 	User      string    `json:"user"`
 	Message   string    `json:"message"`
+	Target    string    `json:"target"`
 }
 
 // user message

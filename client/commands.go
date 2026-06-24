@@ -432,6 +432,7 @@ func (c *IRCClient) sendMessage(target, message string) {
 			Timestamp: time.Now(),
 			User:      c.Nickname,
 			Message:   message,
+			Target:    target,
 		}
 		c.Incoming <- userMsg
 
