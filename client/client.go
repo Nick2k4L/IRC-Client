@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/Nick2k4L/IRC-Client/helpers"
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,6 +33,7 @@ type IRCClient struct {
 	Quit            chan struct{}
 	Port            uint16
 	Connection      net.Conn
+	quitOnce        sync.Once
 }
 
 func NewIRCClient(host, nickname string, port uint16, isDev, tls bool) *IRCClient {
@@ -67,7 +69,7 @@ func (c *IRCClient) ReadStructuredMessage() helpers.StructuredMessage {
 	return msg
 }
 
-func (c *IRCClient) Connect() {
+func (c *IRCClient) Connect() error {
 	var conn net.Conn
 	var err error
 	address := fmt.Sprintf("%s:%d", c.Host, c.Port)
@@ -80,7 +82,7 @@ func (c *IRCClient) Connect() {
 	}
 
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	c.Connection = conn
@@ -88,15 +90,17 @@ func (c *IRCClient) Connect() {
 	fmt.Fprintf(c.Connection, "NICK %s\r\n", c.Nickname)
 	fmt.Fprintf(c.Connection, "USER %s 0 * :%s\r\n", c.Nickname, c.Nickname)
 	go c.readLoop(c.Connection)
-
+	return nil
 }
 
 func (c *IRCClient) Disconnect(reason string) {
-	fmt.Fprintf(c.Connection, "QUIT :%s\r\n", reason)
-	close(c.Quit)
-	if c.Connection != nil {
-		_ = c.Connection.Close()
-	}
+	c.quitOnce.Do(func() {
+		close(c.Quit)
+		if c.Connection != nil {
+			fmt.Fprintf(c.Connection, "QUIT :%s\r\n", reason)
+			_ = c.Connection.Close()
+		}
+	})
 }
 
 func (c *IRCClient) Send(target, msg string) {
