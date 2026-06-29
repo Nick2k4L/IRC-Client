@@ -10,6 +10,7 @@ import (
 	"github.com/Nick2k4L/IRC-Client/helpers"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/go-irc/irc"
+	"github.com/google/uuid"
 )
 
 type IncomingMsg helpers.StructuredMessage
@@ -34,7 +35,7 @@ type IRCClient struct {
 }
 
 func NewIRCClient(host, nickname string, port uint16, isDev, tls bool) *IRCClient {
-	serverID := fmt.Sprintf("%s:%d", host, port)
+	serverID := uuid.New().String()
 
 	return &IRCClient{
 		Host:     host,
