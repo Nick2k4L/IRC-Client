@@ -28,7 +28,7 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 	switch msg.Command {
 	case "001", "002", "003", "004", "005":
 		{
-			c.Incoming <- helpers.ParseServerMessage(msg, c.Host)
+			c.Incoming <- helpers.ParseServerMessage(msg, c.ServerID)
 			return true
 		}
 	case "251", "252", "253", "254", "255", "265", "266", "250", "396":
@@ -40,19 +40,19 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 	case "301":
 		{
 			// can handle something in the future....
-			c.Incoming <- helpers.ParseServerMessage(msg, c.Host)
+			c.Incoming <- helpers.ParseServerMessage(msg, c.ServerID)
 			return true
 		}
 	case "324":
 		{
-			c.Incoming <- helpers.ParseServerMessage(msg, c.Host)
+			c.Incoming <- helpers.ParseServerMessage(msg, c.ServerID)
 			return true
 		}
 	case "311", "312", "317", "319", "344", "671":
 		{
 			// These are WHOIS responses, we can display them to the user
 			// this will return a server message...
-			c.Incoming <- helpers.ParseWhoIsMessage(msg, c.Host)
+			c.Incoming <- helpers.ParseWhoIsMessage(msg, c.ServerID)
 			return true
 		}
 	case "331", "332", "333", "TOPIC":
@@ -62,7 +62,7 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 				return true
 			}
 			// This is the topic of a channel, we can display it to the user
-			c.Incoming <- helpers.ParseTopicMessage(msg, c.Host)
+			c.Incoming <- helpers.ParseTopicMessage(msg, c.ServerID)
 			return true
 		}
 	case "318":
@@ -80,7 +80,7 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 	case "366":
 		{
 			if c.LastCommand == "/NAMES" {
-				c.Incoming <- helpers.DeepCopyUserListMessage(UserList, c.Host) // Send a copy of the user
+				c.Incoming <- helpers.DeepCopyUserListMessage(UserList, c.ServerID) // Send a copy of the user
 				return true
 			}
 			delete(UserList.UserList, helpers.LastChannel) // Clear the user list for the channel after sending it
@@ -89,13 +89,13 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 		{
 			// MOTD messages, we can display them to the user
 			// TODO: Think about making it a MOTDMessage
-			c.Incoming <- helpers.ParseServerMessage(msg, c.Host)
+			c.Incoming <- helpers.ParseServerMessage(msg, c.ServerID)
 			return true
 		}
 	case "376":
 		{
 			c.Incoming <- &helpers.ServerMessage{Type: "SERVER", Timestamp: time.Now(),
-				Message: "<--- Connection Established --->", Server: c.Host}
+				Message: "<--- Connection Established --->", Server: c.ServerID}
 
 			// join some pre-marked channels
 			for _, channel := range c.PreJoinChannels {
@@ -109,9 +109,9 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 			// Generate a message to the user saying, use /nick to change nick name
 			if len(msg.Params) > 1 {
 				c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(),
-					Message: strings.Join(msg.Params[1:], " "), Server: c.Host}
+					Message: strings.Join(msg.Params[1:], " "), Server: c.ServerID}
 			} else {
-				c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: "Unknown", Server: c.Host}
+				c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: "Unknown", Server: c.ServerID}
 			}
 
 			return true
@@ -146,35 +146,35 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 			if msg.Prefix.Name == c.Nickname {
 				c.Nickname = msg.Params[0]
 			}
-			c.Incoming <- helpers.ParseCommandMessages(msg, c.Host)
+			c.Incoming <- helpers.ParseCommandMessages(msg, c.ServerID)
 			return true
 		}
 	case "MODE":
 		{
-			c.Incoming <- helpers.ParseCommandMessages(msg, c.Host)
+			c.Incoming <- helpers.ParseCommandMessages(msg, c.ServerID)
 			return true
 		}
 	case "NOTICE":
 		{
-			c.Incoming <- helpers.ParseCommandMessages(msg, c.Host)
+			c.Incoming <- helpers.ParseCommandMessages(msg, c.ServerID)
 			return true
 		}
 		// channel, user who got kicked, admin who kicked, and a reason
 	case "KICK":
 		{
-			c.Incoming <- helpers.ParseCommandMessages(msg, c.Host)
+			c.Incoming <- helpers.ParseCommandMessages(msg, c.ServerID)
 			return true
 		}
 		// need to handle invites from a user...
 		// might need to be its own type of message since we do have `extra logic` attached to it.
 	case "INVITE":
 		{
-			c.Incoming <- helpers.ParseCommandMessages(msg, c.Host)
+			c.Incoming <- helpers.ParseCommandMessages(msg, c.ServerID)
 			return true
 		}
 	case "ERROR":
 		{
-			c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: msg.Params[0], Server: c.Host}
+			c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(), Message: msg.Params[0], Server: c.ServerID}
 			return true
 		}
 	case "QUIT":
@@ -200,7 +200,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 		if len(c.Channels) == 0 {
 			c.Incoming <- &helpers.ErrorMessage{Type: "ERROR", Timestamp: time.Now(),
 				Message: "You need to join at least one channel. Use /join <channel> to join a channel",
-				Server:  c.Host}
+				Server:  c.ServerID}
 			return
 		}
 
@@ -263,7 +263,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 
 				fmt.Fprintf(c.Connection, "PRIVMSG %s :\x01ACTION %s\x01\r\n", target, action)
 				c.Incoming <- &helpers.ChannelMessage{Type: "Channel", Timestamp: time.Now(), User: c.Nickname,
-					Message: fmt.Sprintf("✧ %s ✧", action), Channel: target, Server: c.Host}
+					Message: fmt.Sprintf("✧ %s ✧", action), Channel: target, Server: c.ServerID}
 			}
 		}
 		// frontend will display the channels that the user is in
@@ -272,7 +272,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 			//chans := fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", "))
 			//msg := helpers.ChannelMessage{Timestamp: time.Now(), User: "client", Message: chans, Channel: "system"}
 			c.Incoming <- &helpers.ServerMessage{Type: "Server", Timestamp: time.Now(),
-				Message: fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", ")), Server: c.Host}
+				Message: fmt.Sprintf("Joined channels: %s", strings.Join(c.Channels, ", ")), Server: c.ServerID}
 		}
 
 	case "/NAMES":
@@ -346,7 +346,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 				Type:      "Server",
 				Timestamp: time.Now(),
 				Message:   fmt.Sprintf("[RAW CMD] -> %s", rawCommand),
-				Server:    c.Host,
+				Server:    c.ServerID,
 			}
 		}
 
@@ -369,7 +369,7 @@ func (c *IRCClient) handlePrivMsg(msg *irc.Message) bool {
 
 	// Standard IRC channels start with #, but some networks use & for local channels
 	if strings.HasPrefix(target, "#") || strings.HasPrefix(target, "&") {
-		c.Incoming <- helpers.ParseChannelMessages(msg, c.Host)
+		c.Incoming <- helpers.ParseChannelMessages(msg, c.ServerID)
 		return true
 	}
 
@@ -381,7 +381,7 @@ func (c *IRCClient) handlePrivMsg(msg *irc.Message) bool {
 
 		c.DirectMsgs = append(c.DirectMsgs, sender) // append the sender to the list of direct messages
 
-		c.Incoming <- helpers.ParseDirectMessage(msg, c.Host)
+		c.Incoming <- helpers.ParseDirectMessage(msg, c.ServerID)
 		return true
 	}
 
@@ -406,7 +406,7 @@ func (c *IRCClient) handleCTCP(sender, target, text string) bool {
 			User:      sender,
 			Message:   fmt.Sprintf("✧ %s ✧", actionText),
 			Channel:   target,
-			Server:    c.Host,
+			Server:    c.ServerID,
 		}
 		return true
 	}
@@ -424,7 +424,7 @@ func (c *IRCClient) sendMessage(target, message string) {
 			Sender:    c.Nickname,
 			Receiver:  target,
 			Message:   message,
-			Server:    c.Host,
+			Server:    c.ServerID,
 		}
 		c.Incoming <- dmMsg
 	} else {
@@ -434,7 +434,7 @@ func (c *IRCClient) sendMessage(target, message string) {
 			User:      c.Nickname,
 			Message:   message,
 			Target:    target,
-			Server:    c.Host,
+			Server:    c.ServerID,
 		}
 		c.Incoming <- userMsg
 

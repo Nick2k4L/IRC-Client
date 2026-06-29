@@ -16,24 +16,26 @@ type IncomingMsg helpers.StructuredMessage
 
 type ErrMsg error
 
-// TODO: add a current channel type, and remove all c.Channels[len(c.Channels)-1]...
 type IRCClient struct {
 	Host            string
 	Nickname        string
-	Port            int
-	Connection      net.Conn
+	LastCommand     string // Keep track of the last command we sent to the server, so we can handle responses to it better
+	CurrentChannel  string
+	ServerID        string
 	Channels        []string // Keep some memory of every channel we have `joined`
 	DirectMsgs      []string // Keep some memory of every channel we have `dmed`
-	LastCommand     string   // Keep track of the last command we sent to the server, so we can handle responses to it better
-	CurrentChannel  string
-	Incoming        chan helpers.StructuredMessage
+	PreJoinChannels []string
 	TLS             bool
 	IsDev           bool
-	PreJoinChannels []string
+	Incoming        chan helpers.StructuredMessage
 	Quit            chan struct{}
+	Port            uint16
+	Connection      net.Conn
 }
 
-func NewIRCClient(host, nickname string, port int, isDev, tls bool) *IRCClient {
+func NewIRCClient(host, nickname string, port uint16, isDev, tls bool) *IRCClient {
+	serverID := fmt.Sprintf("%s:%d", host, port)
+
 	return &IRCClient{
 		Host:     host,
 		Nickname: nickname,
@@ -42,6 +44,7 @@ func NewIRCClient(host, nickname string, port int, isDev, tls bool) *IRCClient {
 		Incoming: make(chan helpers.StructuredMessage, 512),
 		Quit:     make(chan struct{}),
 		IsDev:    isDev,
+		ServerID: serverID,
 	}
 }
 
