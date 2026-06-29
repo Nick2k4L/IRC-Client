@@ -91,7 +91,8 @@ func (c *IRCClient) Connect() {
 
 }
 
-func (c *IRCClient) Disconnect() {
+func (c *IRCClient) Disconnect(reason string) {
+	fmt.Fprintf(c.Connection, "QUIT :%s\r\n", reason)
 	close(c.Quit)
 	if c.Connection != nil {
 		_ = c.Connection.Close()

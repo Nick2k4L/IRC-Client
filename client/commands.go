@@ -292,9 +292,9 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 	case "/QUIT":
 		{
 			if len(parts) > 1 {
-				fmt.Fprintf(c.Connection, "QUIT :%s\r\n", strings.Join(parts[1:], " "))
+				c.Disconnect(strings.Join(parts[1:], " "))
 			} else {
-				fmt.Fprintf(c.Connection, "QUIT\r\n")
+				c.Disconnect("User requested quit")
 			}
 		}
 
