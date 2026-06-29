@@ -138,7 +138,7 @@ func (c *IRCClient) HandleCommands(msg *irc.Message, line string) bool {
 
 	case "JOIN", "PART":
 		{
-			c.Incoming <- helpers.ParseCommandMessages(msg, c.Host)
+			c.Incoming <- helpers.ParseCommandMessages(msg, c.ServerID)
 			return true
 		}
 	case "NICK":
