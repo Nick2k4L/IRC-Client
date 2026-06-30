@@ -66,7 +66,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c": // Note: 'q' here means typing 'q' alone will quit. Consider changing this if users need to type 'q' in chat!
-			m.client.Disconnect()
+			m.client.Disconnect("User requested quit")
 			return m, tea.Quit
 
 		case "enter":
