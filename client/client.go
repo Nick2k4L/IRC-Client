@@ -19,21 +19,20 @@ type IncomingMsg helpers.StructuredMessage
 type ErrMsg error
 
 type IRCClient struct {
-	Host            string
-	Nickname        string
-	LastCommand     string // Keep track of the last command we sent to the server, so we can handle responses to it better
-	CurrentChannel  string
-	ServerID        string
-	Channels        []string // Keep some memory of every channel we have `joined`
-	DirectMsgs      []string // Keep some memory of every channel we have `dmed`
-	PreJoinChannels []string
-	TLS             bool
-	IsDev           bool
-	Incoming        chan helpers.StructuredMessage
-	Quit            chan struct{}
-	Port            uint16
-	Connection      net.Conn
-	quitOnce        sync.Once
+	Host           string
+	Nickname       string
+	LastCommand    string // Keep track of the last command we sent to the server, so we can handle responses to it better
+	CurrentChannel string
+	ServerID       string
+	Channels       []string // Keep some memory of every channel we have `joined`
+	DirectMsgs     []string // Keep some memory of every channel we have `dmed`
+	TLS            bool
+	IsDev          bool
+	Incoming       chan helpers.StructuredMessage
+	Quit           chan struct{}
+	Port           uint16
+	Connection     net.Conn
+	quitOnce       sync.Once
 }
 
 func NewIRCClient(host, nickname string, port uint16, isDev, tls bool) *IRCClient {

@@ -97,8 +97,8 @@ func (c *IRCClient) HandleNumeric(msg *irc.Message) bool {
 			c.Incoming <- &helpers.ServerMessage{Type: "SERVER", Timestamp: time.Now(),
 				Message: "<--- Connection Established --->", Server: c.ServerID}
 
-			// join some pre-marked channels
-			for _, channel := range c.PreJoinChannels {
+			// join any channels
+			for _, channel := range c.Channels {
 				fmt.Fprintf(c.Connection, "JOIN %s\r\n", channel)
 			}
 
@@ -224,7 +224,7 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 	case "/JOIN":
 		{
 			if len(parts) > 1 {
-				c.Channels = append(c.Channels, parts[1]) // TODO: Remove this
+				c.Channels = append(c.Channels, parts[1])
 				fmt.Fprintf(c.Connection, "JOIN %s\r\n", strings.TrimSpace(parts[1]))
 			}
 		}
@@ -242,11 +242,13 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 			// Logic for parting
 			if len(parts) > 1 {
 				fmt.Fprintf(c.Connection, "PART %s\r\n", strings.TrimSpace(parts[1]))
+				c.removeChannel(strings.TrimSpace(parts[1]))
 
 				// TODO: Frontend will need to update the channel list
 				// This would no user definition, just channel
 			} else {
 				fmt.Fprintf(c.Connection, "PART %s\r\n", strings.TrimSpace(target))
+				c.removeChannel(strings.TrimSpace(target))
 			}
 		}
 	case "/NICK":
@@ -438,5 +440,14 @@ func (c *IRCClient) sendMessage(target, message string) {
 		}
 		c.Incoming <- userMsg
 
+	}
+}
+
+func (c *IRCClient) removeChannel(channel string) {
+	for i, ch := range c.Channels {
+		if ch == channel {
+			c.Channels = append(c.Channels[:i], c.Channels[i+1:]...)
+			break
+		}
 	}
 }
