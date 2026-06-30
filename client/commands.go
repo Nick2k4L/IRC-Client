@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -224,7 +225,10 @@ func (c *IRCClient) ParseUserInput(target, input string) {
 	case "/JOIN":
 		{
 			if len(parts) > 1 {
-				c.Channels = append(c.Channels, parts[1])
+				if !slices.Contains(c.Channels, parts[1]) {
+					c.Channels = append(c.Channels, parts[1])
+				}
+
 				fmt.Fprintf(c.Connection, "JOIN %s\r\n", strings.TrimSpace(parts[1]))
 			}
 		}
