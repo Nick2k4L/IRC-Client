@@ -86,7 +86,12 @@ func (c *IRCClient) Connect() error {
 		return err
 	}
 
+	// init these variables on a new connection
 	c.Connection = conn
+	c.Incoming = make(chan helpers.StructuredMessage, 512)
+	c.quitOnce = sync.Once{}
+	c.Quit = make(chan struct{})
+
 	// need to send the nick and user commands to the server
 	fmt.Fprintf(c.Connection, "NICK %s\r\n", c.Nickname)
 	fmt.Fprintf(c.Connection, "USER %s 0 * :%s\r\n", c.Nickname, c.Nickname)
