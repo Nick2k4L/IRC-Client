@@ -61,12 +61,13 @@ func (c *IRCClient) ReadMessages() tea.Cmd {
 	}
 }
 
-func (c *IRCClient) ReadStructuredMessage() helpers.StructuredMessage {
+func (c *IRCClient) ReadStructuredMessage() (helpers.StructuredMessage, error) {
 	msg, ok := <-c.Incoming
 	if !ok {
-		return nil
+		c.Disconnect("connection closed")
+		return nil, errors.New("connection closed")
 	}
-	return msg
+	return msg, nil
 }
 
 func (c *IRCClient) Connect() error {
